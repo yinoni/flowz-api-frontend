@@ -1,5 +1,22 @@
 import axios from 'axios';
 import { store } from '@/app/store/store';
+import { log } from 'console';
+import { logout } from '../store/userSlice';
+
+
+export interface APIResponse{
+    success: true,
+    data: any,
+    msg?: string
+}
+
+export interface APIErrorResponse{
+    message: string,
+    success: false,
+    status: any,
+    timestamp: any 
+}
+
 
 const api = axios.create({
     baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -12,6 +29,7 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
     const state = store.getState();
     const token = state.user.token;
+    
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -27,10 +45,9 @@ api.interceptors.response.use((response) => {
         console.log('UNAUTHORIZED!');
         // 1. קודם כל מוודאים שאנחנו רצים בצד הלקוח (בדפדפן)
         if (typeof window !== 'undefined') {
-          
             // 2. בדיקה: האם המשתמש *לא* נמצא כרגע בעמוד הלוגין?
             if (window.location.pathname !== '/login') {
-                
+                store.dispatch(logout());
                 // אופציונלי: ניקוי טוקנים ישנים מה-Storage כדי שלא ננסה לשלוח אותם שוב
                 localStorage.removeItem('token'); 
                 

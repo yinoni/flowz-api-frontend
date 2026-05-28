@@ -24,84 +24,8 @@ interface FlowsState {
   activeFlowId: string | null;
 }
 
-const SEED_STEPS: Step[] = [
-  {
-    id: 's1',
-    title: 'LOGIN',
-    url: 'https://api.flowstate.io/v1/auth',
-    httpMethod: 'POST',
-    body: '{ "user": "admin" }',
-    headers: {},
-    extract: { token: 'response.data.token' },
-    assertions: {},
-    position: { x: 80, y: 80 },
-  },
-  {
-    id: 's2',
-    title: 'CREATE BUSINESS',
-    url: 'https://api.flowstate.io/v1/business',
-    httpMethod: 'POST',
-    body: '{ "name": "Nexus Corp" }',
-    headers: { Authorization: 'Bearer {{token}}' },
-    extract: { businessId: 'response.id' },
-    assertions: {},
-    position: { x: 520, y: 300 },
-  },
-  {
-    id: 's3',
-    title: 'SAVE BUSINESS',
-    url: 'https://api.flowstate.io/v1/users/saved/{{businessId}}',
-    httpMethod: 'POST',
-    body: '',
-    headers: {},
-    extract: {},
-    assertions: { status: '200' },
-    position: { x: 1020, y: 150 },
-  },
-];
-
 const initialState: FlowsState = {
-  flows: [
-    {
-      id: '1',
-      flowName: 'Business Onboarding',
-      projectId: 'proj-default',
-      globalURL: '',
-      globalVariables: {},
-      status: 'ACTIVE',
-      lastModified: 'Oct 24, 2023',
-      icon: 'hub',
-      iconColor: 'text-primary',
-      iconBg: 'bg-primary/10',
-      steps: SEED_STEPS,
-    },
-    {
-      id: '2',
-      flowName: 'Inventory Sync',
-      projectId: 'proj-default',
-      globalURL: '',
-      globalVariables: {},
-      status: 'PAUSED',
-      lastModified: 'Oct 20, 2023',
-      icon: 'sync',
-      iconColor: 'text-tertiary',
-      iconBg: 'bg-tertiary/10',
-      steps: [],
-    },
-    {
-      id: '3',
-      flowName: 'Auth Test',
-      projectId: 'proj-auth',
-      globalURL: '',
-      globalVariables: {},
-      status: 'DRAFT',
-      lastModified: 'Oct 18, 2023',
-      icon: 'verified_user',
-      iconColor: 'text-secondary',
-      iconBg: 'bg-secondary/10',
-      steps: [],
-    },
-  ],
+  flows: [],
   activeFlowId: null,
 };
 
@@ -113,17 +37,16 @@ const flowsSlice = createSlice({
   name: 'flows',
   initialState,
   reducers: {
+    setFlows(state, action: PayloadAction<FlowRecord[]>){
+      state.flows = action.payload;
+    },
     createFlow(
       state,
-      action: PayloadAction<{ flowName: string; status: FlowStatus; projectId?: string; globalURL?: string }>
+      action: PayloadAction<FlowRecord>
     ) {
-      const id = Date.now().toString();
+      const acceptedFlow = action.payload;
       state.flows.push({
-        id,
-        flowName: action.payload.flowName,
-        projectId: action.payload.projectId ?? '',
-        globalURL: action.payload.globalURL ?? '',
-        globalVariables: {},
+        ...acceptedFlow,
         status: action.payload.status,
         lastModified: todayLabel(),
         icon: 'bolt',
@@ -131,7 +54,7 @@ const flowsSlice = createSlice({
         iconBg: 'bg-primary/10',
         steps: [],
       });
-      state.activeFlowId = id;
+      state.activeFlowId = acceptedFlow.id;
     },
     deleteFlow(state, action: PayloadAction<string>) {
       state.flows = state.flows.filter((f) => f.id !== action.payload);
@@ -185,6 +108,7 @@ const flowsSlice = createSlice({
 });
 
 export const {
+  setFlows,
   createFlow,
   deleteFlow,
   updateFlowMeta,

@@ -12,22 +12,24 @@ interface ProjectsState {
 }
 
 const initialState: ProjectsState = {
-  projects: [
-    { id: 'proj-default', projectName: 'Default Project', userId: '' },
-    { id: 'proj-ecommerce', projectName: 'E-Commerce Suite', userId: '' },
-    { id: 'proj-auth', projectName: 'Auth Service', userId: '' },
-  ],
-  activeProjectId: 'proj-default',
+  projects: [],
+  activeProjectId: '',
 };
 
 const projectsSlice = createSlice({
   name: 'projects',
   initialState,
   reducers: {
-    createProject(state, action: PayloadAction<{ projectName: string }>) {
-      const id = Date.now().toString();
-      state.projects.push({ id, projectName: action.payload.projectName, userId: '' });
-      state.activeProjectId = id;
+    setProjects(state, action: PayloadAction<ProjectRecord[]>){
+      const projectsData = action.payload;
+      state.projects = projectsData;
+      if(projectsData.length > 0)
+        state.activeProjectId = projectsData[0].id;
+    },
+    createProject(state, action: PayloadAction<ProjectRecord>) {
+      const project = action.payload;
+      state.projects.push(project);
+      state.activeProjectId = project.id;
     },
     setActiveProject(state, action: PayloadAction<string>) {
       state.activeProjectId = action.payload;
@@ -35,5 +37,5 @@ const projectsSlice = createSlice({
   },
 });
 
-export const { createProject, setActiveProject } = projectsSlice.actions;
+export const { setProjects, createProject, setActiveProject } = projectsSlice.actions;
 export default projectsSlice.reducer;

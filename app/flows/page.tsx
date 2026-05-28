@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "../store/store";
@@ -11,8 +11,10 @@ import {
   setActiveFlow,
   type FlowRecord,
   type FlowStatus,
+  setFlows,
 } from "../store/flowsSlice";
 import FlowModal from "../components/FlowModal";
+import { getProjectFlows } from "../api/flowRoute";
 
 const STATUS_CONFIG: Record<FlowStatus, { label: string; className: string }> = {
   ACTIVE: {
@@ -183,9 +185,9 @@ export default function MyFlowsPage() {
 
   function handleSaveModal(data: { flowName: string; status: FlowStatus; globalURL: string }) {
     if (editingFlow) {
-      dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
+      //dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
     } else {
-      dispatch(createFlow({ ...data, projectId: activeProjectId ?? '' }));
+      //dispatch(createFlow({ ...data, projectId: activeProjectId ?? '' }));
       router.push("/");
     }
   }
@@ -199,6 +201,30 @@ export default function MyFlowsPage() {
     if (deleteConfirmId) dispatch(deleteFlow(deleteConfirmId));
     setDeleteConfirmId(null);
   }
+
+  useEffect(() => {
+    const initPageData = async () => {
+      if(activeProject){
+        console.log('Hi! 2');
+        
+        const apiResponse = await getProjectFlows(activeProject.id);
+        console.log("Hi! 3");
+        
+        if(apiResponse.success){
+          console.log("Hi! 4");
+            
+            dispatch(setFlows(apiResponse.data));
+        }
+        else{
+          console.log("Hi! 5");
+
+          //Show a toast message that says there was an error
+        }
+      }
+    }
+
+    initPageData();
+  }, [activeProject]);
 
   return (
     <>

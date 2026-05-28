@@ -45,7 +45,8 @@ export function ProjectDropdown() {
   function handleCreateSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
-    dispatch(createProject({ projectName: newName.trim() }));
+    //dispatch(createProject({ projectName: newName.trim() }));
+    
     setIsOpen(false);
     setIsCreating(false);
     setNewName("");

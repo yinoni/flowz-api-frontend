@@ -10,6 +10,8 @@ import { InputField, PasswordField } from "../components/InputField";
 import { login, signup } from "../api/authAPI";
 import { safeJwtDecode } from "../utils/utils";
 import { AuthErrorResponse, AuthResponse } from "../types";
+import { getUserProjects } from "../api/projectRoute";
+import { setProjects } from "../store/projectsSlice";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,6 +50,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     if (apiResponse.success) {
+      console.log('The login response is ====', apiResponse.data);
+      
       await initData(apiResponse.data);
     } else {
       setError(apiResponse.msg);
@@ -78,18 +82,25 @@ export default function LoginPage() {
 
   const initData = async (jwt: string) => {
     const decoded: any | undefined = safeJwtDecode(jwt);
-    if(decoded){
-      await dispatch(loginSuccess({
-        user: {
-          id: decoded.id,
-          username: decoded.username,
-          email: decoded.sub
-        },
-        token: jwt
-      }));
+    if(!decoded)
+      return;
 
-      router.push("/flows");
-    }
+    await dispatch(loginSuccess({
+      user: {
+        id: decoded.id,
+        username: decoded.username,
+        email: decoded.sub
+      },
+      token: jwt
+    }));
+
+    const usersProjectsResponse = await getUserProjects();
+    
+    if(usersProjectsResponse.success)
+      await dispatch(setProjects(usersProjectsResponse.data));
+
+    router.push("/flows");
+    
   }
 
   return (
