@@ -61,13 +61,13 @@ const stepsSlice = createSlice({
   initialState,
   reducers: {
     addStep(state, action: PayloadAction<StepFormData>) {
-      const count = state.steps.length;
-      const col = count % 3;
-      const row = Math.floor(count / 3);
+      const last = state.steps[state.steps.length - 1];
+      const newX = last ? last.position.x + 440 : 80;
+      const newY = last ? (last.position.y <= 150 ? 300 : 80) : 80;
       state.steps.push({
         ...action.payload,
         id: Date.now().toString(),
-        position: { x: 80 + col * 440, y: 80 + row * 300 },
+        position: { x: newX, y: newY },
       });
     },
     updateStep(state, action: PayloadAction<Step>) {

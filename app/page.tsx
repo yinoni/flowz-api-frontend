@@ -1,10 +1,19 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "./store/store";
-import { addStep, updateStep, type Step } from "./store/stepsSlice";
+import {
+  addStepToFlow,
+  updateStepInFlow,
+  removeStepFromFlow,
+  setActiveFlow,
+} from "./store/flowsSlice";
+import type { Step, StepFormData } from "./store/stepsSlice";
 import NewRequestModal from "./components/NewRequestModal";
+import GlobalVariableModal from "./components/GlobalVariableModal";
+import GlobalAssertionModal from "./components/GlobalAssertionModal";
 
 type LogStatus =
   | "STEP_PASSED"
@@ -84,7 +93,7 @@ function LogLine({ log }: { log: LogEntry }) {
   );
 }
 
-function StepNode({ step, onClick }: { step: Step; onClick: () => void }) {
+function StepNode({ step, onClick, onDelete }: { step: Step; onClick: () => void; onDelete: () => void }) {
   const hasHeaders = Object.keys(step.headers).length > 0;
   const hasExtract = Object.keys(step.extract).length > 0;
   const hasAssertions = Object.keys(step.assertions).length > 0;
@@ -106,7 +115,13 @@ function StepNode({ step, onClick }: { step: Step; onClick: () => void }) {
           <span className="bg-secondary-container text-on-secondary-container px-xs rounded text-[9px] font-bold">
             {step.httpMethod || "GET"}
           </span>
-          <span className="material-symbols-outlined text-outline text-sm">edit</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="text-outline hover:text-error transition-colors"
+            title="Delete step"
+          >
+            <span className="material-symbols-outlined text-sm">delete</span>
+          </button>
         </div>
       </div>
       <div className="p-md space-y-md">
@@ -168,12 +183,17 @@ function StepNode({ step, onClick }: { step: Step; onClick: () => void }) {
 }
 
 export default function Home() {
-  const steps = useSelector((state: RootState) => state.steps.steps);
+  const router = useRouter();
   const dispatch = useDispatch();
+  const { flows, activeFlowId } = useSelector((state: RootState) => state.flows);
+  const activeFlow = flows.find((f) => f.id === activeFlowId) ?? null;
+  const steps = activeFlow?.steps ?? [];
 
   const [logs] = useState<LogEntry[]>(INITIAL_LOGS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<Step | null>(null);
+  const [isVariableModalOpen, setIsVariableModalOpen] = useState(false);
+  const [isAssertionModalOpen, setIsAssertionModalOpen] = useState(false);
 
   const canvasRef = useRef<HTMLElement>(null);
   const isDragging = useRef(false);
@@ -224,14 +244,61 @@ export default function Home() {
     setIsModalOpen(true);
   }
 
-  function handleSave(data: Parameters<typeof addStep>[0]) {
+  function handleSave(data: StepFormData) {
+    if (!activeFlowId) return;
     if (editingStep) {
-      dispatch(updateStep({ ...data, id: editingStep.id, position: editingStep.position }));
+      dispatch(updateStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
     } else {
-      dispatch(addStep(data));
+      dispatch(addStepToFlow({ flowId: activeFlowId, stepData: data }));
     }
     setIsModalOpen(false);
     setEditingStep(null);
+  }
+
+  // No active flow — prompt user to select or create one
+  if (!activeFlow) {
+    return (
+      <>
+        <div className="flex-1 flex flex-col items-center justify-center bg-background canvas-grid gap-lg">
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-lg">
+              <span className="material-symbols-outlined text-3xl text-outline">account_tree</span>
+            </div>
+            <h2 className="font-headline-lg text-headline-lg text-on-surface mb-xs">No Flow Selected</h2>
+            <p className="text-on-surface-variant font-body-md mb-xl max-w-sm">
+              Open an existing flow from My Flows, or create a new one to start building.
+            </p>
+            <div className="flex gap-md justify-center">
+              <button
+                onClick={() => router.push("/flows")}
+                className="flex items-center gap-sm px-lg py-sm rounded-lg border border-outline-variant text-on-surface hover:border-primary hover:text-primary transition-all font-body-md"
+              >
+                <span className="material-symbols-outlined">folder_open</span>
+                My Flows
+              </button>
+              <button
+                onClick={() => {
+                  // Create a quick untitled flow inline
+                  dispatch({ type: "flows/createFlow", payload: { flowName: "Untitled Flow", status: "DRAFT" } });
+                }}
+                className="flex items-center gap-sm px-lg py-sm rounded-lg bg-primary text-on-primary-fixed font-bold hover:opacity-90 transition-all active:scale-95"
+              >
+                <span className="material-symbols-outlined">add_circle</span>
+                New Flow
+              </button>
+            </div>
+          </div>
+        </div>
+        <footer className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full h-[180px] z-30 shrink-0">
+          <div className="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low shrink-0">
+            <span className="font-code-md text-code-md text-tertiary">RUN EXECUTION</span>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <span className="text-outline font-code-sm text-code-sm">No flow selected.</span>
+          </div>
+        </footer>
+      </>
+    );
   }
 
   const canvasWidth = Math.max(1800, ...steps.map((s) => s.position.x + 440));
@@ -263,26 +330,24 @@ export default function Home() {
                 <polygon fill="#4d8eff" points="0 0, 10 3.5, 0 7" />
               </marker>
             </defs>
-            {steps.length >= 2 && (
-              <path
-                className="connection-line"
-                d={`M ${steps[0].position.x + 320} ${steps[0].position.y + 80} C ${steps[0].position.x + 380} ${steps[0].position.y + 80}, ${steps[1].position.x - 60} ${steps[1].position.y + 80}, ${steps[1].position.x} ${steps[1].position.y + 80}`}
-                fill="none"
-                markerEnd="url(#arrowhead)"
-                stroke="#4d8eff"
-                strokeWidth="2"
-              />
-            )}
-            {steps.length >= 3 && (
-              <path
-                className="connection-line"
-                d={`M ${steps[1].position.x + 320} ${steps[1].position.y + 80} C ${steps[1].position.x + 380} ${steps[1].position.y + 80}, ${steps[2].position.x - 60} ${steps[2].position.y + 80}, ${steps[2].position.x} ${steps[2].position.y + 80}`}
-                fill="none"
-                markerEnd="url(#arrowhead)"
-                stroke="#4d8eff"
-                strokeWidth="2"
-              />
-            )}
+            {steps.slice(0, -1).map((step, i) => {
+              const next = steps[i + 1];
+              const x1 = step.position.x + 320;
+              const y1 = step.position.y + 80;
+              const x2 = next.position.x;
+              const y2 = next.position.y + 80;
+              return (
+                <path
+                  key={`conn-${step.id}-${next.id}`}
+                  className="connection-line"
+                  d={`M ${x1} ${y1} C ${x1 + 60} ${y1}, ${x2 - 60} ${y2}, ${x2} ${y2}`}
+                  fill="none"
+                  markerEnd="url(#arrowhead)"
+                  stroke="#4d8eff"
+                  strokeWidth="2"
+                />
+              );
+            })}
           </svg>
 
           <div
@@ -294,6 +359,9 @@ export default function Home() {
                 key={step.id}
                 step={step}
                 onClick={() => openEditModal(step)}
+                onDelete={() =>
+                  dispatch(removeStepFromFlow({ flowId: activeFlowId!, stepId: step.id }))
+                }
               />
             ))}
           </div>
@@ -310,27 +378,50 @@ export default function Home() {
           <div className="grid grid-cols-2 gap-sm">
             {(
               [
-                { icon: "http", label: "Request" },
-                { icon: "timer", label: "Wait" },
-                { icon: "abc", label: "Variable" },
-                { icon: "verified_user", label: "Assert" },
+                { icon: "http", label: "Request", color: "secondary" },
+                { icon: "timer", label: "Wait", color: null },
+                { icon: "abc", label: "Variable", color: "primary" },
+                { icon: "verified_user", label: "Assert", color: "tertiary" },
               ] as const
-            ).map(({ icon, label }) => (
-              <div
-                key={label}
-                onClick={label === "Request" ? openAddModal : undefined}
-                className={`flex flex-col items-center justify-center p-md bg-surface-container border rounded-lg transition-all group ${
-                  label === "Request"
-                    ? "border-secondary text-secondary cursor-pointer hover:bg-surface-container-high"
-                    : "border-outline-variant cursor-grab active:cursor-grabbing hover:border-secondary"
-                }`}
-              >
-                <span className="material-symbols-outlined text-secondary mb-xs">{icon}</span>
-                <span className="font-label-caps text-label-caps text-on-surface-variant group-hover:text-secondary">
-                  {label}
-                </span>
-              </div>
-            ))}
+            ).map(({ icon, label, color }) => {
+              const onClick =
+                label === "Request"
+                  ? openAddModal
+                  : label === "Variable"
+                  ? () => setIsVariableModalOpen(true)
+                  : label === "Assert"
+                  ? () => setIsAssertionModalOpen(true)
+                  : undefined;
+              const isClickable = !!onClick;
+              const accentColor =
+                color === "primary"
+                  ? "border-primary hover:bg-surface-container-high"
+                  : color === "tertiary"
+                  ? "border-tertiary hover:bg-surface-container-high"
+                  : color === "secondary"
+                  ? "border-secondary hover:bg-surface-container-high"
+                  : "border-outline-variant hover:border-secondary";
+              const iconColor =
+                color === "primary"
+                  ? "text-primary"
+                  : color === "tertiary"
+                  ? "text-tertiary"
+                  : "text-secondary";
+              return (
+                <div
+                  key={label}
+                  onClick={onClick}
+                  className={`flex flex-col items-center justify-center p-md bg-surface-container border rounded-lg transition-all group ${accentColor} ${
+                    isClickable ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+                  }`}
+                >
+                  <span className={`material-symbols-outlined ${iconColor} mb-xs`}>{icon}</span>
+                  <span className="font-label-caps text-label-caps text-on-surface-variant group-hover:text-secondary">
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
           <div className="mt-lg px-sm border-t border-outline-variant pt-lg">
             <div className="font-label-caps text-label-caps text-outline mb-md uppercase">
@@ -339,16 +430,29 @@ export default function Home() {
             <div className="bg-background rounded p-sm space-y-md">
               <div>
                 <label className="text-[9px] text-outline uppercase block mb-1">Flow Name</label>
-                <input
-                  className="w-full bg-surface-container-high border border-outline-variant rounded px-xs py-1 font-code-sm text-code-sm text-primary focus:border-primary outline-none"
-                  type="text"
-                  defaultValue="Business Onboarding"
-                />
+                <div className="w-full bg-surface-container-high border border-outline-variant rounded px-xs py-1 font-code-sm text-code-sm text-primary truncate">
+                  {activeFlow.flowName}
+                </div>
               </div>
+              {activeFlow.globalURL && (
+                <div>
+                  <label className="text-[9px] text-outline uppercase block mb-1">Base URL</label>
+                  <div className="font-code-sm text-code-sm text-on-surface-variant truncate">
+                    {activeFlow.globalURL}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-[9px] text-outline uppercase block mb-1">Steps</label>
                 <div className="font-code-md text-code-md text-secondary">{steps.length}</div>
               </div>
+              <button
+                onClick={() => router.push("/flows")}
+                className="w-full flex items-center justify-center gap-xs px-md py-xs rounded border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary transition-all font-body-sm text-body-sm mt-sm"
+              >
+                <span className="material-symbols-outlined text-sm">arrow_back</span>
+                Back to My Flows
+              </button>
             </div>
           </div>
         </aside>
@@ -359,6 +463,15 @@ export default function Home() {
         onClose={() => { setIsModalOpen(false); setEditingStep(null); }}
         onSave={handleSave}
         initialStep={editingStep}
+        defaultUrl={activeFlow.globalURL || undefined}
+      />
+      <GlobalVariableModal
+        isOpen={isVariableModalOpen}
+        onClose={() => setIsVariableModalOpen(false)}
+      />
+      <GlobalAssertionModal
+        isOpen={isAssertionModalOpen}
+        onClose={() => setIsAssertionModalOpen(false)}
       />
 
       {/* Execution Terminal */}
@@ -369,7 +482,7 @@ export default function Home() {
             <div className="flex items-center gap-xs ml-lg">
               <div className="w-2 h-2 rounded-full bg-secondary-fixed animate-pulse" />
               <span className="font-code-sm text-code-sm text-on-surface-variant">
-                Active: Sequence_01
+                Active: {activeFlow.flowName}
               </span>
             </div>
           </div>

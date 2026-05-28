@@ -14,6 +14,13 @@ Use this skill when the user wants to create a new UI component that requires st
 ## Create a Custom Hook
 Use this skill when the user wants to extract stateful logic or side effects (like WebSockets or API calls).
 
+## Create new type
+Use this skill when the user wants to create a new type or when you creating a new component
+
+**Instructions:**
+1. go to this path: C:\Users\User\Niv Course\Spring projects\flowz-api-builder\flowz-api-builder\src\main\java\com\flowzapi\flowz_api_builder\model
+2. if you need to create new type search for it in this path before executing
+
 **Instructions:**
 1. Create the file inside `src/hooks/` with a name starting with `use` (e.g., `useFlowSocket.ts`).
 2. Use strict TypeScript types for all arguments, state variables, and return values.

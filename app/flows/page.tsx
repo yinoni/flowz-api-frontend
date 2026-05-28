@@ -1,28 +1,18 @@
 "use client";
 
 import { useState } from "react";
-
-type FlowStatus = "ACTIVE" | "PAUSED" | "DRAFT";
-
-interface SparkBar {
-  height: number;
-  opacity?: number;
-}
-
-interface Flow {
-  id: string;
-  name: string;
-  status: FlowStatus;
-  lastModified: string;
-  successRate: string | null;
-  successRateColor: string;
-  icon: string;
-  iconColor: string;
-  iconBg: string;
-  sparkBars: SparkBar[];
-  sparkColor: string;
-  primaryAction: string;
-}
+import { useRouter } from "next/navigation";
+import { useSelector, useDispatch } from "react-redux";
+import type { RootState } from "../store/store";
+import {
+  createFlow,
+  deleteFlow,
+  updateFlowMeta,
+  setActiveFlow,
+  type FlowRecord,
+  type FlowStatus,
+} from "../store/flowsSlice";
+import FlowModal from "../components/FlowModal";
 
 const STATUS_CONFIG: Record<FlowStatus, { label: string; className: string }> = {
   ACTIVE: {
@@ -35,23 +25,18 @@ const STATUS_CONFIG: Record<FlowStatus, { label: string; className: string }> = 
   },
   DRAFT: {
     label: "DRAFT",
-    className:
-      "bg-surface-container-highest text-on-surface-variant border border-outline-variant",
+    className: "bg-surface-container-highest text-on-surface-variant border border-outline-variant",
   },
 };
 
-const FLOWS: Flow[] = [
-  {
-    id: "1",
-    name: "Business Onboarding",
-    status: "ACTIVE",
-    lastModified: "Oct 24, 2023",
-    successRate: "98.2%",
-    successRateColor: "text-secondary",
-    icon: "hub",
-    iconColor: "text-primary",
-    iconBg: "bg-primary/10",
-    sparkBars: [
+interface SparkBar {
+  height: number;
+  opacity?: number;
+}
+
+const SPARK_PRESETS: Record<FlowStatus, { bars: SparkBar[]; color: string }> = {
+  ACTIVE: {
+    bars: [
       { height: 4, opacity: 30 },
       { height: 6, opacity: 50 },
       { height: 5 },
@@ -59,44 +44,23 @@ const FLOWS: Flow[] = [
       { height: 6 },
       { height: 7 },
     ],
-    sparkColor: "bg-secondary",
-    primaryAction: "Run",
+    color: "bg-secondary",
   },
-  {
-    id: "2",
-    name: "Inventory Sync",
-    status: "PAUSED",
-    lastModified: "Oct 20, 2023",
-    successRate: null,
-    successRateColor: "text-on-surface-variant",
-    icon: "sync",
-    iconColor: "text-tertiary",
-    iconBg: "bg-tertiary/10",
-    sparkBars: [{ height: 4 }, { height: 4 }, { height: 4 }, { height: 4 }, { height: 4 }],
-    sparkColor: "bg-outline-variant",
-    primaryAction: "Resume",
+  PAUSED: {
+    bars: [{ height: 4 }, { height: 4 }, { height: 4 }, { height: 4 }, { height: 4 }],
+    color: "bg-outline-variant",
   },
-  {
-    id: "3",
-    name: "Auth Test",
-    status: "DRAFT",
-    lastModified: "Oct 18, 2023",
-    successRate: "42% (failing)",
-    successRateColor: "text-error",
-    icon: "verified_user",
-    iconColor: "text-secondary",
-    iconBg: "bg-secondary/10",
-    sparkBars: [
+  DRAFT: {
+    bars: [
       { height: 8 },
       { height: 3, opacity: 40 },
       { height: 7 },
       { height: 2, opacity: 20 },
       { height: 6 },
     ],
-    sparkColor: "bg-error",
-    primaryAction: "Debug",
+    color: "bg-error",
   },
-];
+};
 
 function Sparkline({ bars, color }: { bars: SparkBar[]; color: string }) {
   return (
@@ -115,10 +79,22 @@ function Sparkline({ bars, color }: { bars: SparkBar[]; color: string }) {
   );
 }
 
-function FlowCard({ flow }: { flow: Flow }) {
+interface FlowCardProps {
+  flow: FlowRecord;
+  onOpen: () => void;
+  onEdit: (e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
+}
+
+function FlowCard({ flow, onOpen, onEdit, onDelete }: FlowCardProps) {
   const { label, className } = STATUS_CONFIG[flow.status];
+  const spark = SPARK_PRESETS[flow.status];
+
   return (
-    <div className="flow-card-hover bg-surface-container-low border border-outline-variant rounded-xl p-md transition-all duration-300 cursor-pointer">
+    <div
+      onClick={onOpen}
+      className="flow-card-hover bg-surface-container-low border border-outline-variant rounded-xl p-md transition-all duration-300 cursor-pointer hover:border-primary/50 hover:bg-surface-container"
+    >
       <div className="flex justify-between items-start mb-md">
         <div className={`p-sm ${flow.iconBg} rounded-lg`}>
           <span className={`material-symbols-outlined ${flow.iconColor}`}>{flow.icon}</span>
@@ -127,30 +103,43 @@ function FlowCard({ flow }: { flow: Flow }) {
           {label}
         </span>
       </div>
-      <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">{flow.name}</h3>
+      <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">{flow.flowName}</h3>
       <p className="text-on-surface-variant text-body-sm mb-md font-code-sm">
         Last modified: {flow.lastModified}
       </p>
+      {flow.globalURL && (
+        <p className="text-outline font-code-sm text-[10px] mb-md truncate">
+          {flow.globalURL}
+        </p>
+      )}
       <div className="bg-surface-container p-sm rounded-lg border border-outline-variant mb-md flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-label-caps text-on-surface-variant mb-xs">SUCCESS RATE</span>
-          <span className={`font-code-md text-code-md ${flow.successRateColor}`}>
-            {flow.successRate ?? "--"}
-          </span>
+          <span className="text-label-caps text-on-surface-variant mb-xs">STEPS</span>
+          <span className="font-code-md text-code-md text-primary">{flow.steps.length}</span>
         </div>
-        <Sparkline bars={flow.sparkBars} color={flow.sparkColor} />
+        <Sparkline bars={spark.bars} color={spark.color} />
       </div>
       <div className="flex items-center justify-between border-t border-outline-variant pt-md">
         <div className="flex gap-sm">
-          <button className="px-md py-1.5 rounded-lg border border-outline-variant text-body-sm hover:border-primary hover:text-primary transition-all">
+          <button
+            onClick={onEdit}
+            className="px-md py-1.5 rounded-lg border border-outline-variant text-body-sm hover:border-primary hover:text-primary transition-all"
+          >
             Edit
           </button>
-          <button className="px-md py-1.5 rounded-lg border border-outline-variant text-body-sm hover:border-secondary hover:text-secondary transition-all">
-            {flow.primaryAction}
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpen(); }}
+            className="px-md py-1.5 rounded-lg border border-outline-variant text-body-sm hover:border-secondary hover:text-secondary transition-all"
+          >
+            Open
           </button>
         </div>
-        <button className="p-1.5 text-on-surface-variant hover:bg-surface-variant rounded-lg">
-          <span className="material-symbols-outlined">more_vert</span>
+        <button
+          onClick={onDelete}
+          className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-lg transition-all"
+          title="Delete flow"
+        >
+          <span className="material-symbols-outlined">delete</span>
         </button>
       </div>
     </div>
@@ -158,11 +147,56 @@ function FlowCard({ flow }: { flow: Flow }) {
 }
 
 export default function MyFlowsPage() {
+  const router = useRouter();
+  const dispatch = useDispatch();
+  const flows = useSelector((state: RootState) => state.flows.flows);
+
   const [searchQuery, setSearchQuery] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFlow, setEditingFlow] = useState<FlowRecord | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const filtered = flows.filter((f) =>
+    f.flowName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  function handleOpenFlow(flow: FlowRecord) {
+    dispatch(setActiveFlow(flow.id));
+    router.push("/");
+  }
+
+  function handleCreateNew() {
+    setEditingFlow(null);
+    setIsModalOpen(true);
+  }
+
+  function handleEditFlow(e: React.MouseEvent, flow: FlowRecord) {
+    e.stopPropagation();
+    setEditingFlow(flow);
+    setIsModalOpen(true);
+  }
+
+  function handleSaveModal(data: { flowName: string; status: FlowStatus; globalURL: string }) {
+    if (editingFlow) {
+      dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
+    } else {
+      dispatch(createFlow(data));
+      router.push("/");
+    }
+  }
+
+  function handleDeleteClick(e: React.MouseEvent, flowId: string) {
+    e.stopPropagation();
+    setDeleteConfirmId(flowId);
+  }
+
+  function confirmDelete() {
+    if (deleteConfirmId) dispatch(deleteFlow(deleteConfirmId));
+    setDeleteConfirmId(null);
+  }
 
   return (
     <>
-      {/* Content */}
       <section className="flex-1 overflow-y-auto p-lg bg-surface-dim custom-scrollbar">
         {/* Page Header */}
         <div className="flex justify-between items-end mb-xl">
@@ -172,7 +206,10 @@ export default function MyFlowsPage() {
               Manage and monitor your automated architecture.
             </p>
           </div>
-          <button className="flex items-center gap-sm bg-primary text-on-primary-fixed font-bold px-lg py-3 rounded-lg hover:opacity-90 transition-all active:scale-95">
+          <button
+            onClick={handleCreateNew}
+            className="flex items-center gap-sm bg-primary text-on-primary-fixed font-bold px-lg py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
+          >
             <span className="material-symbols-outlined">add_circle</span>
             Create New Flow
           </button>
@@ -197,31 +234,36 @@ export default function MyFlowsPage() {
               <span className="material-symbols-outlined">filter_list</span>
               Filter
             </button>
-            <button className="flex items-center gap-xs px-md py-2 text-on-surface-variant hover:text-on-surface transition-colors font-body-md">
-              <span className="material-symbols-outlined">sort</span>
-              Sorted by Name
-            </button>
           </div>
           <div className="flex items-center gap-xs text-on-surface-variant text-body-sm mr-sm">
             <span className="w-2 h-2 rounded-full bg-secondary" />
-            <span>12 Flows Active</span>
+            <span>{flows.filter((f) => f.status === "ACTIVE").length} Flows Active</span>
           </div>
         </div>
 
         {/* Flow Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
-          {FLOWS.map((flow) => (
-            <FlowCard key={flow.id} flow={flow} />
+          {filtered.map((flow) => (
+            <FlowCard
+              key={flow.id}
+              flow={flow}
+              onOpen={() => handleOpenFlow(flow)}
+              onEdit={(e) => handleEditFlow(e, flow)}
+              onDelete={(e) => handleDeleteClick(e, flow.id)}
+            />
           ))}
-          <div className="border-2 border-dashed border-outline-variant rounded-xl p-md flex flex-col items-center justify-center text-center opacity-60 hover:opacity-100 hover:border-primary hover:bg-surface-container-low transition-all cursor-pointer group">
+          <div
+            onClick={handleCreateNew}
+            className="border-2 border-dashed border-outline-variant rounded-xl p-md flex flex-col items-center justify-center text-center opacity-60 hover:opacity-100 hover:border-primary hover:bg-surface-container-low transition-all cursor-pointer group"
+          >
             <div className="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center mb-md group-hover:bg-primary/20 transition-colors">
-              <span className="material-symbols-outlined text-2xl">auto_awesome</span>
+              <span className="material-symbols-outlined text-2xl">add</span>
             </div>
             <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">
-              Start from Template
+              New Flow
             </h3>
             <p className="text-on-surface-variant text-body-sm px-lg">
-              Browse curated logic patterns to accelerate development.
+              Start building a new API flow from scratch.
             </p>
           </div>
         </div>
@@ -234,16 +276,54 @@ export default function MyFlowsPage() {
           <span className="text-outline">© 2024 FlowState Engine. All logs encrypted.</span>
         </div>
         <div className="flex items-center gap-md">
-          <a className="text-outline hover:text-tertiary transition-colors" href="#">Terminal</a>
-          <a className="text-tertiary font-bold" href="#">Environment</a>
-          <a className="text-outline hover:text-tertiary transition-colors" href="#">Console</a>
-          <div className="h-4 w-px bg-outline-variant mx-xs" />
           <div className="flex items-center gap-xs">
             <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
             <span className="text-secondary opacity-90">v1.24.4-STABLE</span>
           </div>
         </div>
       </footer>
+
+      {/* Create / Edit Modal */}
+      <FlowModal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setEditingFlow(null); }}
+        onSave={handleSaveModal}
+        initialData={
+          editingFlow
+            ? { flowName: editingFlow.flowName, status: editingFlow.status, globalURL: editingFlow.globalURL }
+            : null
+        }
+      />
+
+      {/* Delete Confirmation */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-container border border-outline-variant rounded-xl shadow-2xl p-lg w-[360px]">
+            <div className="flex items-center gap-sm mb-md">
+              <span className="material-symbols-outlined text-error">warning</span>
+              <span className="font-headline-md text-headline-md text-on-surface">Delete Flow?</span>
+            </div>
+            <p className="text-on-surface-variant font-body-md mb-lg">
+              This will permanently remove the flow and all its steps. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-sm">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-lg py-sm rounded-lg border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-all font-body-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-lg py-sm rounded-lg bg-error text-on-error font-bold hover:opacity-90 transition-all active:scale-95 flex items-center gap-xs font-body-md"
+              >
+                <span className="material-symbols-outlined text-sm">delete</span>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

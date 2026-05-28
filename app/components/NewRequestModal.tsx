@@ -15,6 +15,7 @@ interface Props {
   onClose: () => void;
   onSave: (data: StepFormData) => void;
   initialStep?: Step | null;
+  defaultUrl?: string;
 }
 
 function KVEditor({
@@ -87,7 +88,7 @@ function kvToRecord(pairs: KVPair[]): Record<string, string> {
   return Object.fromEntries(pairs.filter((p) => p.key.trim()).map((p) => [p.key, p.value]));
 }
 
-export default function NewRequestModal({ isOpen, onClose, onSave, initialStep }: Props) {
+export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, defaultUrl }: Props) {
   const isEditing = !!initialStep;
 
   const [activeTab, setActiveTab] = useState<Tab>("body");
@@ -112,7 +113,7 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep }
     } else {
       setTitle("");
       setMethod("POST");
-      setUrl("");
+      setUrl(defaultUrl ?? "");
       setBody("");
       setHeaders([]);
       setExtract([]);
