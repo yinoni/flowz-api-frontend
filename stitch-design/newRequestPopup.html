@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FlowState Architect - Configure Request</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "inverse-surface": "#dae2fd",
+            "surface-tint": "#adc6ff",
+            "surface": "#0b1326",
+            "on-tertiary-fixed": "#40000d",
+            "tertiary-fixed": "#ffdadb",
+            "error": "#ffb4ab",
+            "secondary-container": "#00a572",
+            "primary-container": "#4d8eff",
+            "surface-bright": "#31394d",
+            "secondary-fixed-dim": "#4edea3",
+            "surface-container-low": "#131b2e",
+            "surface-container-lowest": "#060e20",
+            "on-surface-variant": "#c2c6d6",
+            "tertiary": "#ffb2b7",
+            "on-primary-fixed-variant": "#004395",
+            "tertiary-fixed-dim": "#ffb2b7",
+            "tertiary-container": "#ff516a",
+            "on-secondary-fixed": "#002113",
+            "on-error-container": "#ffdad6",
+            "primary-fixed": "#d8e2ff",
+            "on-tertiary": "#67001b",
+            "on-primary-container": "#00285d",
+            "on-secondary-container": "#00311f",
+            "error-container": "#93000a",
+            "on-primary": "#002e6a",
+            "inverse-on-surface": "#283044",
+            "surface-dim": "#0b1326",
+            "on-error": "#690005",
+            "inverse-primary": "#005ac2",
+            "surface-container-highest": "#2d3449",
+            "outline-variant": "#424754",
+            "on-secondary-fixed-variant": "#005236",
+            "outline": "#8c909f",
+            "on-primary-fixed": "#001a42",
+            "on-background": "#dae2fd",
+            "secondary-fixed": "#6ffbbe",
+            "primary-fixed-dim": "#adc6ff",
+            "primary": "#adc6ff",
+            "on-secondary": "#003824",
+            "on-tertiary-fixed-variant": "#92002a",
+            "surface-container": "#171f33",
+            "secondary": "#4edea3",
+            "background": "#0b1326",
+            "on-tertiary-container": "#5b0017",
+            "on-surface": "#dae2fd",
+            "surface-variant": "#2d3449",
+            "surface-container-high": "#222a3d"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "sidebar-width": "280px",
+            "unit": "4px",
+            "lg": "24px",
+            "md": "16px",
+            "gutter": "1px",
+            "sm": "8px",
+            "xs": "4px",
+            "xl": "32px",
+            "inspector-width": "320px"
+          },
+          "fontFamily": {
+            "headline-lg": ["Inter"],
+            "body-md": ["Inter"],
+            "label-caps": ["Inter"],
+            "headline-md": ["Inter"],
+            "code-md": ["JetBrains Mono"],
+            "code-sm": ["JetBrains Mono"],
+            "body-sm": ["Inter"]
+          },
+          "fontSize": {
+            "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "label-caps": ["10px", {"lineHeight": "12px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+            "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+            "code-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "code-sm": ["11px", {"lineHeight": "16px", "fontWeight": "400"}],
+            "body-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      vertical-align: middle;
+    }
+    .grid-bg {
+      background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .node-connector {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #475569;
+      border: 2px solid #1e293b;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .node-connector.left { left: -6px; }
+    .node-connector.right { right: -6px; }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #424754; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #8c909f; }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+<!-- Main Workspace (Blurred Background) -->
+<div class="flex h-screen w-full blur-[2px] pointer-events-none brightness-50 transition-all duration-500">
+<!-- SideNavBar (Left) -->
+<aside class="w-sidebar-width bg-surface-container border-r border-outline-variant flex flex-col h-full py-md px-sm">
+<div class="flex items-center gap-sm px-sm mb-xl">
+<div class="w-8 h-8 bg-primary rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary" style="font-variation-settings: 'FILL' 1;">account_tree</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary">Flow Architect</h1>
+<p class="font-body-sm text-body-sm text-outline">Premium Tier</p>
+</div>
+</div>
+<nav class="flex-1 space-y-xs">
+<div class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-variant transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined">account_tree</span>
+<span class="font-body-md text-body-md">My Flows</span>
+</div>
+<div class="flex items-center gap-md p-sm bg-primary-container text-on-primary-container font-bold rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">add_box</span>
+<span class="font-body-md text-body-md">New Flow</span>
+</div>
+<div class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-variant transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined">history</span>
+<span class="font-body-md text-body-md">History</span>
+</div>
+<div class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-variant transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</div>
+</nav>
+<div class="mt-auto p-sm">
+<button class="w-full py-sm bg-secondary-container text-on-secondary-container rounded-lg font-bold transition-all hover:opacity-90">Upgrade Plan</button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col relative overflow-hidden">
+<!-- TopNavBar -->
+<header class="bg-surface-container-highest flex justify-between items-center w-full px-lg h-16 border-b border-outline-variant">
+<div class="flex items-center gap-lg">
+<span class="font-headline-lg text-headline-lg font-bold text-primary">FlowState</span>
+<nav class="flex items-center gap-md">
+<span class="text-on-surface-variant font-body-md">My Flows</span>
+<span class="text-on-surface-variant font-body-md">History</span>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-outline cursor-pointer">share</span>
+<span class="material-symbols-outlined text-outline cursor-pointer">cloud_done</span>
+<button class="px-md py-sm rounded bg-surface-variant text-on-surface-variant transition-colors hover:text-primary">Run</button>
+<button class="px-md py-sm rounded bg-primary text-on-primary font-bold transition-colors">Save Flow</button>
+</div>
+</header>
+<!-- Canvas Area -->
+<main class="flex-1 relative grid-bg overflow-auto bg-surface">
+<!-- Mock Nodes in background -->
+<div class="absolute top-20 left-20 w-64 bg-surface-container-high border border-outline-variant rounded-lg p-md shadow-xl">
+<div class="flex items-center gap-sm mb-md pb-sm border-b border-outline-variant">
+<span class="material-symbols-outlined text-secondary">http</span>
+<span class="font-label-caps text-label-caps">REQUEST</span>
+</div>
+<p class="font-code-sm text-code-sm text-outline truncate">GET https://api.service.com/v1/auth</p>
+<div class="node-connector right"></div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="fixed bottom-0 w-full flex justify-between items-center px-lg bg-surface-container-lowest border-t border-outline-variant h-12">
+<p class="font-code-sm text-code-sm text-outline">© 2024 FlowState Engine. All logs encrypted.</p>
+<div class="flex gap-md text-outline">
+<span class="font-code-sm text-code-sm hover:text-tertiary transition-colors cursor-pointer">Terminal</span>
+<span class="font-code-sm text-code-sm hover:text-tertiary transition-colors cursor-pointer">Environment</span>
+<span class="font-code-sm text-code-sm hover:text-tertiary transition-colors cursor-pointer">Console</span>
+</div>
+</footer>
+</div>
+<!-- Step Palette (Right) -->
+<aside class="w-inspector-width bg-surface-container-low border-l border-outline-variant flex flex-col h-full py-md px-sm">
+<div class="mb-lg px-sm">
+<h2 class="font-headline-md text-headline-md text-secondary">Step Palette</h2>
+<p class="font-body-sm text-body-sm text-outline">Drag to canvas</p>
+</div>
+<div class="grid grid-cols-2 gap-sm">
+<div class="border border-secondary text-secondary rounded-lg p-md flex flex-col items-center gap-xs cursor-grab">
+<span class="material-symbols-outlined">http</span>
+<span class="font-label-caps text-label-caps">Request</span>
+</div>
+<div class="border border-outline-variant text-on-surface-variant hover:border-secondary transition-all rounded-lg p-md flex flex-col items-center gap-xs cursor-grab">
+<span class="material-symbols-outlined">timer</span>
+<span class="font-label-caps text-label-caps">Wait</span>
+</div>
+<div class="border border-outline-variant text-on-surface-variant hover:border-secondary transition-all rounded-lg p-md flex flex-col items-center gap-xs cursor-grab">
+<span class="material-symbols-outlined">abc</span>
+<span class="font-label-caps text-label-caps">Variable</span>
+</div>
+<div class="border border-outline-variant text-on-surface-variant hover:border-secondary transition-all rounded-lg p-md flex flex-col items-center gap-xs cursor-grab">
+<span class="material-symbols-outlined">verified_user</span>
+<span class="font-label-caps text-label-caps">Assert</span>
+</div>
+</div>
+</aside>
+</div>
+<!-- Modal Overlay Container -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-md bg-transparent backdrop-blur-sm">
+<!-- Modal Card -->
+<div class="w-full max-w-2xl bg-surface-container-high border border-outline-variant rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[921px]">
+<!-- Modal Header -->
+<div class="px-xl py-lg bg-surface-container-highest border-b border-outline-variant flex justify-between items-center">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-lg bg-secondary-container/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">http</span>
+</div>
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Configure Request Step</h2>
+<p class="font-body-sm text-body-sm text-outline">Define your HTTP outbound call parameters</p>
+</div>
+</div>
+<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-outline">close</span>
+</button>
+</div>
+<!-- Modal Body (Scrollable Content) -->
+<div class="flex-1 overflow-y-auto p-xl space-y-xl">
+<!-- URL and Method Row -->
+<div class="flex gap-md">
+<div class="w-32">
+<label class="block font-label-caps text-label-caps text-outline mb-xs">METHOD</label>
+<select class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-sm text-on-surface focus:border-primary outline-none transition-colors appearance-none cursor-pointer">
+<option value="GET">GET</option>
+<option value="POST">POST</option>
+<option value="PUT">PUT</option>
+<option value="DELETE">DELETE</option>
+</select>
+</div>
+<div class="flex-1">
+<label class="block font-label-caps text-label-caps text-outline mb-xs">URL</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-sm text-on-surface font-code-md text-code-md placeholder:text-outline-variant focus:border-primary outline-none transition-colors" placeholder="https://api.example.com/v1/resource" type="text"/>
+</div>
+</div>
+<!-- Tabbed Section -->
+<div class="border border-outline-variant rounded-xl overflow-hidden bg-surface-container-low">
+<div class="flex border-b border-outline-variant bg-surface-container">
+<button class="px-lg py-md font-label-caps text-label-caps text-outline hover:text-on-surface transition-colors" id="tab-headers" onclick="switchTab('headers')">Headers</button>
+<button class="px-lg py-md font-label-caps text-label-caps text-primary border-b-2 border-primary bg-surface-container-high transition-colors" id="tab-body" onclick="switchTab('body')">Body</button>
+<button class="px-lg py-md font-label-caps text-label-caps text-outline hover:text-on-surface transition-colors" id="tab-auth" onclick="switchTab('auth')">Auth</button>
+</div>
+<div class="p-md min-h-[160px]" id="tab-content">
+<!-- Body Tab Content (Default) -->
+<div class="block" id="content-body">
+<div class="bg-surface-container-lowest rounded-lg border border-outline-variant p-sm relative group">
+<div class="absolute top-2 right-2 text-outline-variant font-code-sm text-code-sm pointer-events-none">JSON</div>
+<textarea class="w-full bg-transparent border-none text-secondary font-code-md text-code-md focus:ring-0 resize-none" rows="6" spellcheck="false">{
+  "user_id": 123,
+  "action": "trigger_flow",
+  "metadata": {
+    "source": "api_client"
+  }
+}</textarea>
+</div>
+</div>
+<!-- Other contents hidden initially -->
+<div class="hidden text-outline italic font-body-sm text-center py-xl" id="content-headers">No custom headers defined.</div>
+<div class="hidden text-outline italic font-body-sm text-center py-xl" id="content-auth">Inherit from environment.</div>
+</div>
+</div>
+<!-- Extract Variables Section -->
+<div class="space-y-md">
+<div class="flex items-center justify-between">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">dataset</span>
+              Response Extraction
+            </h3>
+<button class="text-primary font-label-caps text-label-caps hover:underline">+ ADD VARIABLE</button>
+</div>
+<div class="grid grid-cols-2 gap-md items-end bg-surface-container p-md rounded-lg border border-outline-variant">
+<div>
+<label class="block font-label-caps text-label-caps text-outline mb-xs">EXTRACT JSON PATH</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-sm text-secondary font-code-md text-code-md outline-none focus:border-secondary" placeholder="$.data.token" type="text"/>
+</div>
+<div>
+<label class="block font-label-caps text-label-caps text-outline mb-xs">VARIABLE NAME</label>
+<div class="flex items-center gap-xs bg-surface-container-lowest border border-outline-variant rounded-lg p-sm">
+<span class="text-outline text-code-md font-code-md">{{</span>
+<input class="flex-1 bg-transparent border-none p-0 text-on-surface font-code-md text-code-md focus:ring-0 outline-none" placeholder="auth_token" type="text"/>
+<span class="text-outline text-code-md font-code-md">}}</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="px-xl py-lg bg-surface-container border-t border-outline-variant flex justify-end items-center gap-md">
+<button class="px-lg py-md rounded-lg text-on-surface-variant hover:bg-surface-variant font-bold transition-all duration-75 active:scale-95">Cancel</button>
+<button class="px-xl py-md rounded-lg bg-primary text-on-primary font-extrabold shadow-lg shadow-primary/20 transition-all duration-75 active:scale-95 flex items-center gap-sm">
+<span class="material-symbols-outlined text-[20px]">add</span>
+          Add to Flow
+        </button>
+</div>
+</div>
+</div>
+<script>
+    function switchTab(tabName) {
+      // Logic for UI interaction
+      const tabs = ['headers', 'body', 'auth'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        const content = document.getElementById(`content-${t}`);
+        
+        if (t === tabName) {
+          btn.classList.remove('text-outline');
+          btn.classList.add('text-primary', 'border-b-2', 'border-primary', 'bg-surface-container-high');
+          content.classList.remove('hidden');
+          content.classList.add('block');
+        } else {
+          btn.classList.add('text-outline');
+          btn.classList.remove('text-primary', 'border-b-2', 'border-primary', 'bg-surface-container-high');
+          content.classList.add('hidden');
+          content.classList.remove('block');
+        }
+      });
+    }
+
+    // Interactive atmospheric pulses for background nodes
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('FlowState UI Loaded');
+    });
+  </script>
+</body></html>

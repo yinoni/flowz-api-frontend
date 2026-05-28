@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FlowState | API Flow Builder</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .canvas-grid {
+            background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .connection-line {
+            stroke-dasharray: 8;
+            animation: flow 2s linear infinite;
+        }
+        @keyframes flow {
+            from { stroke-dashoffset: 16; }
+            to { stroke-dashoffset: 0; }
+        }
+        .step-node {
+            transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s;
+        }
+        .step-node:hover {
+            transform: translateY(-2px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #424754;
+            border-radius: 10px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                "on-tertiary-container": "#5b0017",
+                "background": "#0b1326",
+                "primary-container": "#4d8eff",
+                "surface-container-high": "#222a3d",
+                "on-primary-fixed": "#001a42",
+                "surface": "#0b1326",
+                "on-primary": "#002e6a",
+                "on-secondary": "#003824",
+                "inverse-surface": "#dae2fd",
+                "inverse-on-surface": "#283044",
+                "surface-bright": "#31394d",
+                "on-error": "#690005",
+                "surface-container-low": "#131b2e",
+                "on-tertiary": "#67001b",
+                "primary": "#adc6ff",
+                "tertiary-fixed-dim": "#ffb2b7",
+                "on-secondary-container": "#00311f",
+                "secondary-fixed": "#6ffbbe",
+                "surface-container-lowest": "#060e20",
+                "error": "#ffb4ab",
+                "primary-fixed": "#d8e2ff",
+                "on-secondary-fixed-variant": "#005236",
+                "on-primary-fixed-variant": "#004395",
+                "primary-fixed-dim": "#adc6ff",
+                "surface-tint": "#adc6ff",
+                "secondary-fixed-dim": "#4edea3",
+                "error-container": "#93000a",
+                "secondary-container": "#00a572",
+                "outline-variant": "#424754",
+                "tertiary": "#ffb2b7",
+                "on-tertiary-fixed": "#40000d",
+                "on-tertiary-fixed-variant": "#92002a",
+                "on-primary-container": "#00285d",
+                "surface-container-highest": "#2d3449",
+                "surface-container": "#171f33",
+                "on-secondary-fixed": "#002113",
+                "on-background": "#dae2fd",
+                "on-surface-variant": "#c2c6d6",
+                "secondary": "#4edea3",
+                "surface-variant": "#2d3449",
+                "surface-dim": "#0b1326",
+                "on-surface": "#dae2fd",
+                "tertiary-container": "#ff516a",
+                "outline": "#8c909f",
+                "on-error-container": "#ffdad6",
+                "inverse-primary": "#005ac2",
+                "tertiary-fixed": "#ffdadb"
+              },
+              "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+              },
+              "spacing": {
+                "lg": "24px",
+                "md": "16px",
+                "xs": "4px",
+                "sm": "8px",
+                "unit": "4px",
+                "gutter": "1px",
+                "inspector-width": "320px",
+                "sidebar-width": "280px",
+                "xl": "32px"
+              },
+              "fontFamily": {
+                "code-sm": ["JetBrains Mono"],
+                "body-sm": ["Inter"],
+                "headline-md": ["Inter"],
+                "headline-lg": ["Inter"],
+                "label-caps": ["Inter"],
+                "code-md": ["JetBrains Mono"],
+                "body-md": ["Inter"]
+              },
+              "fontSize": {
+                "code-sm": ["11px", {"lineHeight": "16px", "fontWeight": "400"}],
+                "body-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                "label-caps": ["10px", {"lineHeight": "12px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                "code-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background h-screen flex flex-col overflow-hidden font-body-md text-body-md">
+<!-- TopNavBar -->
+<header class="bg-surface-container-highest flex justify-between items-center w-full px-lg h-16 border-b border-outline-variant z-30">
+<div class="flex items-center gap-md">
+<span class="font-headline-lg text-headline-lg font-bold text-primary">FlowState</span>
+<nav class="hidden md:flex gap-md ml-lg">
+<a class="font-headline-md text-headline-md text-primary border-b-2 border-primary pb-1" href="#">My Flows</a>
+<a class="font-headline-md text-headline-md text-on-surface-variant hover:text-primary transition-colors" href="#">History</a>
+</nav>
+</div>
+<div class="flex items-center gap-sm">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary p-sm">share</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary p-sm">cloud_done</button>
+<button class="px-md py-xs bg-surface-variant text-on-surface-variant font-bold rounded hover:opacity-80 transition-all">Run</button>
+<button class="px-md py-xs bg-primary-container text-on-primary-container font-bold rounded hover:opacity-80 transition-all">Save Flow</button>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden relative">
+<!-- SideNavBar (Left) -->
+<aside class="bg-surface-container border-r border-outline-variant flex flex-col h-full py-md px-sm w-sidebar-width shrink-0 z-20">
+<div class="mb-lg px-sm">
+<div class="flex items-center gap-sm mb-xs">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold">U</div>
+<div>
+<div class="font-headline-md text-headline-md text-primary">Flow Architect</div>
+<div class="text-on-surface-variant text-[10px] uppercase tracking-wider">Premium Tier</div>
+</div>
+</div>
+<button class="w-full mt-md bg-secondary-container text-on-secondary-container py-xs rounded-lg font-bold text-body-sm hover:opacity-80 transition-all">Upgrade Plan</button>
+</div>
+<nav class="flex-1 space-y-xs">
+<a class="flex items-center gap-sm px-sm py-md text-on-surface-variant hover:bg-surface-variant transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+<span>My Flows</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-md bg-primary-container text-on-primary-container font-bold rounded-lg transition-all scale-95 duration-75" href="#">
+<span class="material-symbols-outlined">add_box</span>
+<span>New Flow</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-md text-on-surface-variant hover:bg-surface-variant transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">history</span>
+<span>History</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-md text-on-surface-variant hover:bg-surface-variant transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-outline-variant pt-md space-y-xs">
+<a class="flex items-center gap-sm px-sm py-xs text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-body-sm">Docs</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-xs text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="text-body-sm">Support</span>
+</a>
+</div>
+</aside>
+<!-- Center Canvas -->
+<section class="flex-1 relative overflow-auto canvas-grid bg-background group" id="canvas">
+<svg class="absolute inset-0 w-full h-full pointer-events-none z-0">
+<defs>
+<marker id="arrowhead" markerheight="7" markerwidth="10" orient="auto" refx="0" refy="3.5">
+<polygon fill="#4d8eff" points="0 0, 10 3.5, 0 7"></polygon>
+</marker>
+</defs>
+<path class="connection-line" d="M 380 200 C 450 200, 450 400, 520 400" fill="none" marker-end="url(#arrowhead)" stroke="#4d8eff" stroke-width="2"></path>
+<path class="connection-line" d="M 880 400 C 950 400, 950 250, 1020 250" fill="none" marker-end="url(#arrowhead)" stroke="#4d8eff" stroke-width="2"></path>
+</svg>
+<div class="absolute inset-0 p-xl flex flex-col items-center justify-center gap-xl min-w-[1200px]">
+<!-- STEP 1 -->
+<div class="step-node absolute left-20 top-20 w-[300px] bg-surface-container-high border border-outline-variant rounded-lg overflow-hidden shadow-xl z-10">
+<div class="bg-surface-variant px-md py-sm flex justify-between items-center border-b border-outline-variant">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-secondary text-sm">http</span>
+<span class="font-label-caps text-label-caps text-on-surface">STEP 1: LOGIN</span>
+</div>
+<span class="bg-secondary-container text-on-secondary-container px-xs rounded text-[9px] font-bold">POST</span>
+</div>
+<div class="p-md space-y-md">
+<div>
+<label class="text-label-caps text-outline text-[9px] block mb-xs uppercase">URL</label>
+<div class="font-code-sm text-code-sm bg-background p-xs border border-outline-variant rounded text-on-surface truncate">https://api.flowstate.io/v1/auth</div>
+</div>
+<div>
+<label class="text-label-caps text-outline text-[9px] block mb-xs uppercase">Request Body</label>
+<pre class="font-code-sm text-code-sm bg-background p-xs border border-outline-variant rounded text-primary">{ "user": "admin" }</pre>
+</div>
+<div class="bg-primary-container/10 border border-primary/30 p-xs rounded">
+<label class="text-label-caps text-primary text-[9px] block mb-xs uppercase">Extract</label>
+<div class="font-code-sm text-code-sm text-on-background">token <span class="text-primary font-bold">←</span> response.data.token</div>
+</div>
+</div>
+</div>
+<!-- STEP 2 -->
+<div class="step-node absolute left-[520px] top-[300px] w-[360px] bg-surface-container-high border border-outline-variant rounded-lg overflow-hidden shadow-xl z-10">
+<div class="bg-surface-variant px-md py-sm flex justify-between items-center border-b border-outline-variant">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-secondary text-sm">http</span>
+<span class="font-label-caps text-label-caps text-on-surface">STEP 2: CREATE BUSINESS</span>
+</div>
+<span class="bg-secondary-container text-on-secondary-container px-xs rounded text-[9px] font-bold">POST</span>
+</div>
+<div class="p-md space-y-md">
+<div class="bg-surface-container-low p-xs rounded border-l-2 border-primary">
+<div class="text-[9px] text-outline uppercase font-label-caps mb-1">Header</div>
+<div class="font-code-sm text-code-sm">Authorization: Bearer <span class="text-primary font-bold">{{token}}</span></div>
+</div>
+<div>
+<label class="text-label-caps text-outline text-[9px] block mb-xs uppercase">Request Body</label>
+<pre class="font-code-sm text-code-sm bg-background p-xs border border-outline-variant rounded text-primary">{ "name": "Nexus Corp" }</pre>
+</div>
+<div class="bg-primary-container/10 border border-primary/30 p-xs rounded">
+<label class="text-label-caps text-primary text-[9px] block mb-xs uppercase">Extract</label>
+<div class="font-code-sm text-code-sm text-on-background">businessId <span class="text-primary font-bold">←</span> response.id</div>
+</div>
+</div>
+</div>
+<!-- STEP 3 -->
+<div class="step-node absolute left-[1020px] top-[150px] w-[340px] bg-surface-container-high border-2 border-primary-container rounded-lg overflow-hidden shadow-[0_0_20px_rgba(77,142,255,0.2)] z-10 animate-pulse-subtle">
+<div class="bg-primary-container/20 px-md py-sm flex justify-between items-center border-b border-outline-variant">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary text-sm">http</span>
+<span class="font-label-caps text-label-caps text-on-surface">STEP 3: SAVE BUSINESS</span>
+</div>
+<span class="bg-secondary-container text-on-secondary-container px-xs rounded text-[9px] font-bold">POST</span>
+</div>
+<div class="p-md space-y-md">
+<div>
+<label class="text-label-caps text-outline text-[9px] block mb-xs uppercase">URL</label>
+<div class="font-code-sm text-code-sm bg-background p-xs border border-outline-variant rounded text-on-surface">.../saved/<span class="text-primary font-bold">{{businessId}}</span></div>
+</div>
+<div class="bg-tertiary-container/10 border border-tertiary-container/30 p-xs rounded">
+<label class="text-label-caps text-tertiary text-[9px] block mb-xs uppercase">Assertions</label>
+<div class="flex items-center justify-between font-code-sm text-code-sm">
+<span>Status == 200</span>
+<span class="material-symbols-outlined text-tertiary text-xs">pending</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SideNavBar (Right Inspector / Step Palette) -->
+<aside class="bg-surface-container-low border-l border-outline-variant flex flex-col h-full py-md px-sm w-inspector-width shrink-0 z-20">
+<div class="mb-lg px-sm">
+<div class="font-headline-md text-headline-md text-secondary">Step Palette</div>
+<div class="text-on-surface-variant text-[10px] uppercase tracking-widest opacity-70">Drag to canvas</div>
+</div>
+<div class="grid grid-cols-2 gap-sm">
+<div class="flex flex-col items-center justify-center p-md bg-surface-container border border-outline-variant rounded-lg cursor-grab active:cursor-grabbing hover:border-secondary transition-all group">
+<span class="material-symbols-outlined text-secondary mb-xs">http</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant group-hover:text-secondary">Request</span>
+</div>
+<div class="flex flex-col items-center justify-center p-md bg-surface-container border border-outline-variant rounded-lg cursor-grab active:cursor-grabbing hover:border-secondary transition-all group">
+<span class="material-symbols-outlined text-secondary mb-xs">timer</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant group-hover:text-secondary">Wait</span>
+</div>
+<div class="flex flex-col items-center justify-center p-md bg-surface-container border border-outline-variant rounded-lg cursor-grab active:cursor-grabbing hover:border-secondary transition-all group">
+<span class="material-symbols-outlined text-secondary mb-xs">abc</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant group-hover:text-secondary">Variable</span>
+</div>
+<div class="flex flex-col items-center justify-center p-md bg-surface-container border border-outline-variant rounded-lg cursor-grab active:cursor-grabbing hover:border-secondary transition-all group">
+<span class="material-symbols-outlined text-secondary mb-xs">verified_user</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant group-hover:text-secondary">Assert</span>
+</div>
+</div>
+<div class="mt-lg px-sm border-t border-outline-variant pt-lg">
+<div class="font-label-caps text-label-caps text-outline mb-md uppercase">Flow Inspector</div>
+<div class="bg-background rounded p-sm space-y-md">
+<div>
+<label class="text-[9px] text-outline uppercase block mb-1">Flow Name</label>
+<input class="w-full bg-surface-container-high border border-outline-variant rounded px-xs py-1 font-code-sm text-primary focus:border-primary outline-none" type="text" value="Business Onboarding"/>
+</div>
+<div>
+<label class="text-[9px] text-outline uppercase block mb-1">Timeout (ms)</label>
+<input class="w-full bg-surface-container-high border border-outline-variant rounded px-xs py-1 font-code-sm text-primary focus:border-primary outline-none" type="number" value="30000"/>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<!-- Footer / Execution Panel -->
+<footer class="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full h-[180px] z-30 transition-all">
+<div class="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low">
+<div class="flex items-center gap-md">
+<span class="font-code-md text-code-md text-tertiary">RUN EXECUTION</span>
+<div class="flex items-center gap-xs ml-lg">
+<div class="w-2 h-2 rounded-full bg-secondary-fixed animate-pulse"></div>
+<span class="text-code-sm text-on-surface-variant">Active: Sequence_01</span>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<nav class="flex gap-md font-code-sm text-code-sm">
+<a class="text-tertiary font-bold" href="#">Terminal</a>
+<a class="text-outline hover:text-tertiary transition-colors" href="#">Environment</a>
+<a class="text-outline hover:text-tertiary transition-colors" href="#">Console</a>
+</nav>
+<button class="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs hover:opacity-80 transition-all font-bold text-sm">
+<span class="material-symbols-outlined text-sm">play_arrow</span>
+                    Start
+                </button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-md custom-scrollbar font-code-sm text-code-sm space-y-1">
+<div class="flex items-start gap-md group">
+<span class="text-outline w-24 shrink-0">[10:04:22]</span>
+<span class="material-symbols-outlined text-secondary-fixed text-sm">check_circle</span>
+<span class="text-secondary-fixed">STEP 1 COMPLETE: Login successful. Token extracted. (244ms)</span>
+</div>
+<div class="flex items-start gap-md group">
+<span class="text-outline w-24 shrink-0">[10:04:23]</span>
+<span class="material-symbols-outlined text-secondary-fixed text-sm">check_circle</span>
+<span class="text-secondary-fixed">STEP 2 COMPLETE: Business "Nexus Corp" created. ID: 882910. (512ms)</span>
+</div>
+<div class="flex items-start gap-md group">
+<span class="text-outline w-24 shrink-0">[10:04:24]</span>
+<span class="material-symbols-outlined text-tertiary text-sm animate-spin">refresh</span>
+<span class="text-tertiary">STEP 3 RUNNING: Saving business reference...</span>
+</div>
+<div class="flex items-start gap-md text-outline italic">
+<span class="w-24 shrink-0"></span>
+<span>Connecting to localhost:8080/api/users/saved/882910...</span>
+</div>
+</div>
+<div class="h-6 px-lg flex items-center justify-between border-t border-outline-variant bg-surface-container-lowest">
+<div class="text-[10px] text-outline">© 2024 FlowState Engine. All logs encrypted.</div>
+<div class="text-[10px] text-outline flex gap-md">
+<span>CPU: 12%</span>
+<span>MEM: 512MB</span>
+<span>WS: Connected</span>
+</div>
+</div>
+</footer>
+<script>
+        // Simple micro-interaction for the canvas
+        const canvas = document.getElementById('canvas');
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.target !== canvas) return;
+            isDragging = true;
+            canvas.classList.add('cursor-grabbing');
+            startX = e.pageX - canvas.offsetLeft;
+            startY = e.pageY - canvas.offsetTop;
+            scrollLeft = canvas.scrollLeft;
+            scrollTop = canvas.scrollTop;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            canvas.classList.remove('cursor-grabbing');
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.classList.remove('cursor-grabbing');
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.pageX - canvas.offsetLeft;
+            const y = e.pageY - canvas.offsetTop;
+            const walkX = (x - startX) * 1.5;
+            const walkY = (y - startY) * 1.5;
+            canvas.scrollLeft = scrollLeft - walkX;
+            canvas.scrollTop = scrollTop - walkY;
+        });
+    </script>
+</body></html>

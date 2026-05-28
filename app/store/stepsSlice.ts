@@ -1,0 +1,84 @@
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+export interface Step {
+  id: string;
+  title: string;
+  url: string;
+  httpMethod: string;
+  body: string;
+  headers: Record<string, string>;
+  extract: Record<string, string>;
+  assertions: Record<string, string>;
+  position: { x: number; y: number };
+}
+
+export type StepFormData = Omit<Step, 'id' | 'position'>;
+
+interface StepsState {
+  steps: Step[];
+}
+
+const initialState: StepsState = {
+  steps: [
+    {
+      id: '1',
+      title: 'LOGIN',
+      url: 'https://api.flowstate.io/v1/auth',
+      httpMethod: 'POST',
+      body: '{ "user": "admin" }',
+      headers: {},
+      extract: { token: 'response.data.token' },
+      assertions: {},
+      position: { x: 80, y: 80 },
+    },
+    {
+      id: '2',
+      title: 'CREATE BUSINESS',
+      url: 'https://api.flowstate.io/v1/business',
+      httpMethod: 'POST',
+      body: '{ "name": "Nexus Corp" }',
+      headers: { Authorization: 'Bearer {{token}}' },
+      extract: { businessId: 'response.id' },
+      assertions: {},
+      position: { x: 520, y: 300 },
+    },
+    {
+      id: '3',
+      title: 'SAVE BUSINESS',
+      url: 'https://api.flowstate.io/v1/users/saved/{{businessId}}',
+      httpMethod: 'POST',
+      body: '',
+      headers: {},
+      extract: {},
+      assertions: { status: '200' },
+      position: { x: 1020, y: 150 },
+    },
+  ],
+};
+
+const stepsSlice = createSlice({
+  name: 'steps',
+  initialState,
+  reducers: {
+    addStep(state, action: PayloadAction<StepFormData>) {
+      const count = state.steps.length;
+      const col = count % 3;
+      const row = Math.floor(count / 3);
+      state.steps.push({
+        ...action.payload,
+        id: Date.now().toString(),
+        position: { x: 80 + col * 440, y: 80 + row * 300 },
+      });
+    },
+    updateStep(state, action: PayloadAction<Step>) {
+      const index = state.steps.findIndex((s) => s.id === action.payload.id);
+      if (index !== -1) state.steps[index] = action.payload;
+    },
+    removeStep(state, action: PayloadAction<string>) {
+      state.steps = state.steps.filter((s) => s.id !== action.payload);
+    },
+  },
+});
+
+export const { addStep, updateStep, removeStep } = stepsSlice.actions;
+export default stepsSlice.reducer;
