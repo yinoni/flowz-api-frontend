@@ -150,13 +150,18 @@ export default function MyFlowsPage() {
   const router = useRouter();
   const dispatch = useDispatch();
   const flows = useSelector((state: RootState) => state.flows.flows);
+  const activeProjectId = useSelector((state: RootState) => state.projects.activeProjectId);
+  const activeProject = useSelector((state: RootState) =>
+    state.projects.projects.find((p) => p.id === activeProjectId)
+  );
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowRecord | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const filtered = flows.filter((f) =>
+  const projectFlows = flows.filter((f) => f.projectId === activeProjectId);
+  const filtered = projectFlows.filter((f) =>
     f.flowName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -180,7 +185,7 @@ export default function MyFlowsPage() {
     if (editingFlow) {
       dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
     } else {
-      dispatch(createFlow(data));
+      dispatch(createFlow({ ...data, projectId: activeProjectId ?? '' }));
       router.push("/");
     }
   }
@@ -203,7 +208,11 @@ export default function MyFlowsPage() {
           <div>
             <h2 className="font-headline-lg text-headline-lg text-on-surface mb-xs">My Flows</h2>
             <p className="text-on-surface-variant font-body-md">
-              Manage and monitor your automated architecture.
+              {activeProject ? (
+                <>Project: <span className="text-primary">{activeProject.projectName}</span></>
+              ) : (
+                "Manage and monitor your automated architecture."
+              )}
             </p>
           </div>
           <button
@@ -237,7 +246,7 @@ export default function MyFlowsPage() {
           </div>
           <div className="flex items-center gap-xs text-on-surface-variant text-body-sm mr-sm">
             <span className="w-2 h-2 rounded-full bg-secondary" />
-            <span>{flows.filter((f) => f.status === "ACTIVE").length} Flows Active</span>
+            <span>{projectFlows.filter((f) => f.status === "ACTIVE").length} Flows Active</span>
           </div>
         </div>
 

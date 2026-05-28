@@ -65,7 +65,7 @@ const initialState: FlowsState = {
     {
       id: '1',
       flowName: 'Business Onboarding',
-      projectId: '',
+      projectId: 'proj-default',
       globalURL: '',
       globalVariables: {},
       status: 'ACTIVE',
@@ -78,7 +78,7 @@ const initialState: FlowsState = {
     {
       id: '2',
       flowName: 'Inventory Sync',
-      projectId: '',
+      projectId: 'proj-default',
       globalURL: '',
       globalVariables: {},
       status: 'PAUSED',
@@ -91,7 +91,7 @@ const initialState: FlowsState = {
     {
       id: '3',
       flowName: 'Auth Test',
-      projectId: '',
+      projectId: 'proj-auth',
       globalURL: '',
       globalVariables: {},
       status: 'DRAFT',

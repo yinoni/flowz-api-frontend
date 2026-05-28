@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { TopNav } from "./components/TopNav";
-import { Sidebar } from "./components/Sidebar";
 import { StoreProvider } from "./components/StoreProvider";
+import { ClientLayoutWrapper } from "./components/ClientLayoutWrapper";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -37,13 +36,9 @@ export default function RootLayout({
       </head>
       <body className="bg-background text-on-background h-screen flex flex-col overflow-hidden font-body-md text-body-md">
         <StoreProvider>
-          <TopNav />
-          <div className="flex flex-1 overflow-hidden">
-            <Sidebar />
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {children}
-            </div>
-          </div>
+          <ClientLayoutWrapper>
+            {children}
+          </ClientLayoutWrapper>
         </StoreProvider>
       </body>
     </html>
