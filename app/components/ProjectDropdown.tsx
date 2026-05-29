@@ -3,7 +3,51 @@
 import { useEffect, useRef, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "../store/store";
-import { createProject, setActiveProject } from "../store/projectsSlice";
+import { createProject, ProjectRecord, setActiveProject } from "../store/projectsSlice";
+import { createProject as createProjectAPI } from "../api/projectRoute";
+import { getProjectFlows } from "../api/flowRoute";
+import { setActiveFlow, setFlows } from "../store/flowsSlice";
+
+
+interface ProjectDDRowProps{
+  project: ProjectRecord,
+  activeProjectId: string | null,
+  handleSelect: (projectId: string ) => void
+}
+
+const ProjectDDRow = ({project, activeProjectId, handleSelect}: ProjectDDRowProps) => {
+  const isActive = project.id === activeProjectId;
+    
+    return (
+      <li key={project.id}>
+        <button
+          onClick={() => handleSelect(project.id)}
+          className={`w-full flex items-center justify-between px-md py-sm text-left transition-colors rounded-lg mx-xs my-0.5 w-[calc(100%-8px)] ${
+            isActive
+              ? "bg-primary/10 text-primary"
+              : "text-on-surface hover:bg-surface-variant"
+          }`}
+        >
+          <div className="flex items-center gap-sm min-w-0">
+            <span
+              className={`material-symbols-outlined text-sm shrink-0 ${
+                isActive ? "text-primary" : "text-outline"
+              }`}
+            >
+              folder
+            </span>
+            <span className="font-body-md truncate">{project.projectName}</span>
+          </div>
+          {isActive && (
+            <span className="material-symbols-outlined text-primary text-sm shrink-0">
+              check
+            </span>
+          )}
+        </button>
+      </li>
+    ); 
+}
+
 
 export function ProjectDropdown() {
   const dispatch = useDispatch();
@@ -35,18 +79,38 @@ export function ProjectDropdown() {
     if (isCreating) inputRef.current?.focus();
   }, [isCreating]);
 
-  function handleSelect(id: string) {
-    dispatch(setActiveProject(id));
-    setIsOpen(false);
-    setIsCreating(false);
-    setNewName("");
+  async function handleSelect(id: string) {
+    const newProjectFlows = await getProjectFlows(id);
+    
+    if(newProjectFlows.success){
+      const newFlows = newProjectFlows.data;
+
+      if(newFlows)
+        dispatch(setFlows(newFlows));
+        
+      dispatch(setActiveFlow(null));
+      dispatch(setActiveProject(id));
+      setIsOpen(false);
+      setIsCreating(false);
+      setNewName("");
+    }
+    else{
+      //Throw toast message that says that was an error with the project switching
+    }
+
+    
+    
   }
 
-  function handleCreateSubmit(e: React.FormEvent) {
+  async function handleCreateSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
-    //dispatch(createProject({ projectName: newName.trim() }));
-    
+
+    const result = await createProjectAPI(newName.trim());
+    if (result.success) {
+      dispatch(createProject(result.data));
+    }
+
     setIsOpen(false);
     setIsCreating(false);
     setNewName("");
@@ -56,6 +120,22 @@ export function ProjectDropdown() {
     setIsCreating(true);
     setNewName("");
   }
+
+  const projectComponents = projects.map((project) => {
+
+    return (
+      <ProjectDDRow
+        key={project.id}
+        project={project}
+        activeProjectId={activeProjectId}
+        handleSelect={handleSelect}
+      />
+    )
+  });
+
+  useEffect(() => {
+        
+  }, [activeProjectId]);
 
   return (
     <div ref={containerRef} className="relative">
@@ -125,39 +205,9 @@ export function ProjectDropdown() {
               <li className="px-md py-sm text-outline font-body-sm italic text-center">
                 No projects yet.
               </li>
-            ) : (
-              projects.map((project) => {
-                const isActive = project.id === activeProjectId;
-                return (
-                  <li key={project.id}>
-                    <button
-                      onClick={() => handleSelect(project.id)}
-                      className={`w-full flex items-center justify-between px-md py-sm text-left transition-colors rounded-lg mx-xs my-0.5 w-[calc(100%-8px)] ${
-                        isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-on-surface hover:bg-surface-variant"
-                      }`}
-                    >
-                      <div className="flex items-center gap-sm min-w-0">
-                        <span
-                          className={`material-symbols-outlined text-sm shrink-0 ${
-                            isActive ? "text-primary" : "text-outline"
-                          }`}
-                        >
-                          folder
-                        </span>
-                        <span className="font-body-md truncate">{project.projectName}</span>
-                      </div>
-                      {isActive && (
-                        <span className="material-symbols-outlined text-primary text-sm shrink-0">
-                          check
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })
-            )}
+            ) : 
+              projectComponents
+            }
           </ul>
         </div>
       )}

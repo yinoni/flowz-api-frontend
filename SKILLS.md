@@ -21,6 +21,15 @@ Use this skill when the user wants to create a new type or when you creating a n
 1. go to this path: C:\Users\User\Niv Course\Spring projects\flowz-api-builder\flowz-api-builder\src\main\java\com\flowzapi\flowz_api_builder\model
 2. if you need to create new type search for it in this path before executing
 
+## Create new HTTP request to the server
+Use this skill when the user wants to create an HTTP request to the backend server
+
+**Instructions:**
+1. Go to this path: C:\Users\User\Niv Course\Spring projects\flowz-api-builder\flowz-api-builder\src\main\java\com\flowzapi\flowz_api_builder\controller
+2. Look for the correct controller (for example the user asks you to create an http request to get all the flows of project you should go to the FlowController.java)
+3. Look for the correct endpoint
+4. Look for the request DTO
+
 **Instructions:**
 1. Create the file inside `src/hooks/` with a name starting with `use` (e.g., `useFlowSocket.ts`).
 2. Use strict TypeScript types for all arguments, state variables, and return values.

@@ -23,6 +23,7 @@ const projectsSlice = createSlice({
     setProjects(state, action: PayloadAction<ProjectRecord[]>){
       const projectsData = action.payload;
       state.projects = projectsData;
+      
       if(projectsData.length > 0)
         state.activeProjectId = projectsData[0].id;
     },
@@ -31,7 +32,7 @@ const projectsSlice = createSlice({
       state.projects.push(project);
       state.activeProjectId = project.id;
     },
-    setActiveProject(state, action: PayloadAction<string>) {
+    setActiveProject(state, action: PayloadAction<string>) {      
       state.activeProjectId = action.payload;
     },
   },

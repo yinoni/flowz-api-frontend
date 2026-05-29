@@ -1,6 +1,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { Step, StepFormData } from './stepsSlice';
 
+type BackendStep = Omit<Step, 'position'>;
+
 export type FlowStatus = 'ACTIVE' | 'PAUSED' | 'DRAFT';
 
 export interface FlowRecord {
@@ -22,11 +24,13 @@ export interface FlowRecord {
 interface FlowsState {
   flows: FlowRecord[];
   activeFlowId: string | null;
+  executionId: string | null;
 }
 
 const initialState: FlowsState = {
   flows: [],
   activeFlowId: null,
+  executionId: null
 };
 
 function todayLabel(): string {
@@ -38,7 +42,10 @@ const flowsSlice = createSlice({
   initialState,
   reducers: {
     setFlows(state, action: PayloadAction<FlowRecord[]>){
-      state.flows = action.payload;
+      const payloadFlows = action.payload;
+      state.flows = payloadFlows;
+      if(payloadFlows.length > 0)
+        state.activeFlowId = payloadFlows[0].id;
     },
     createFlow(
       state,
@@ -58,7 +65,10 @@ const flowsSlice = createSlice({
     },
     deleteFlow(state, action: PayloadAction<string>) {
       state.flows = state.flows.filter((f) => f.id !== action.payload);
-      if (state.activeFlowId === action.payload) state.activeFlowId = null;
+      if (state.activeFlowId === action.payload){ 
+        state.activeFlowId = null;
+        state.executionId = null;
+      }
     },
     updateFlowMeta(
       state,
@@ -72,10 +82,10 @@ const flowsSlice = createSlice({
         flow.lastModified = todayLabel();
       }
     },
-    setActiveFlow(state, action: PayloadAction<string>) {
+    setActiveFlow(state, action: PayloadAction<string | null>) {
       state.activeFlowId = action.payload;
     },
-    addStepToFlow(state, action: PayloadAction<{ flowId: string; stepData: StepFormData }>) {
+    addStepToFlow(state, action: PayloadAction<{ flowId: string; stepData: StepFormData; stepId?: string }>) {
       const flow = state.flows.find((f) => f.id === action.payload.flowId);
       if (!flow) return;
       const last = flow.steps[flow.steps.length - 1];
@@ -83,7 +93,7 @@ const flowsSlice = createSlice({
       const newY = last ? (last.position.y <= 150 ? 300 : 80) : 80;
       flow.steps.push({
         ...action.payload.stepData,
-        id: Date.now().toString(),
+        id: action.payload.stepId ?? Date.now().toString(),
         position: { x: newX, y: newY },
       });
       flow.lastModified = todayLabel();
@@ -97,6 +107,15 @@ const flowsSlice = createSlice({
         flow.lastModified = todayLabel();
       }
     },
+    setFlowSteps(state, action: PayloadAction<{ flowId: string; steps: BackendStep[] }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      flow.steps = action.payload.steps.map((step, index) => {
+        const x = 80 + index * 440;
+        const y = index % 2 === 0 ? 80 : 300;
+        return { ...step, position: { x, y } };
+      });
+    },
     removeStepFromFlow(state, action: PayloadAction<{ flowId: string; stepId: string }>) {
       const flow = state.flows.find((f) => f.id === action.payload.flowId);
       if (flow) {
@@ -104,6 +123,9 @@ const flowsSlice = createSlice({
         flow.lastModified = todayLabel();
       }
     },
+    setExecutionId(state, action: PayloadAction<string | null>){
+      state.executionId = action.payload;
+    }
   },
 });
 
@@ -113,8 +135,10 @@ export const {
   deleteFlow,
   updateFlowMeta,
   setActiveFlow,
+  setFlowSteps,
   addStepToFlow,
   updateStepInFlow,
   removeStepFromFlow,
+  setExecutionId
 } = flowsSlice.actions;
 export default flowsSlice.reducer;

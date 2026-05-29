@@ -12,6 +12,8 @@ import { safeJwtDecode } from "../utils/utils";
 import { AuthErrorResponse, AuthResponse } from "../types";
 import { getUserProjects } from "../api/projectRoute";
 import { setProjects } from "../store/projectsSlice";
+import { getProjectFlows } from "../api/flowRoute";
+import { setFlows } from "../store/flowsSlice";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -49,9 +51,7 @@ export default function LoginPage() {
   async function postAuth(apiResponse: AuthResponse | AuthErrorResponse){
     setIsLoading(true);
 
-    if (apiResponse.success) {
-      console.log('The login response is ====', apiResponse.data);
-      
+    if (apiResponse.success) {      
       await initData(apiResponse.data);
     } else {
       setError(apiResponse.msg);
@@ -96,9 +96,17 @@ export default function LoginPage() {
 
     const usersProjectsResponse = await getUserProjects();
     
-    if(usersProjectsResponse.success)
+    if(usersProjectsResponse.success && usersProjectsResponse.data.length > 0){
+      const firstProject = usersProjectsResponse.data[0];
+
       await dispatch(setProjects(usersProjectsResponse.data));
 
+      const projectFlowsResponse = await getProjectFlows(firstProject.id);
+      
+      if(projectFlowsResponse.success){
+        await dispatch(setFlows(projectFlowsResponse.data));
+      }
+    }
     router.push("/flows");
     
   }

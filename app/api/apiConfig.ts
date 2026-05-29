@@ -42,7 +42,7 @@ api.interceptors.response.use((response) => {
     const status = error.status;
 
     if(status === 401){
-        console.log('UNAUTHORIZED!');
+        console.warn('UNAUTHORIZED!');
         // 1. קודם כל מוודאים שאנחנו רצים בצד הלקוח (בדפדפן)
         if (typeof window !== 'undefined') {
             // 2. בדיקה: האם המשתמש *לא* נמצא כרגע בעמוד הלוגין?
@@ -62,7 +62,7 @@ api.interceptors.response.use((response) => {
     }
 
     if(status === 403)
-        console.log('FORBIDDEN!');
+        console.warn('FORBIDDEN!');
         
     return Promise.reject(error);
 });

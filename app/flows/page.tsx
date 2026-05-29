@@ -14,7 +14,7 @@ import {
   setFlows,
 } from "../store/flowsSlice";
 import FlowModal from "../components/FlowModal";
-import { getProjectFlows } from "../api/flowRoute";
+import { createFlow as createFlowAPI, deleteFlow as deleteFlowAPI, editFlow as editFlowAPI, getProjectFlows } from "../api/flowRoute";
 
 const STATUS_CONFIG: Record<FlowStatus, { label: string; className: string }> = {
   ACTIVE: {
@@ -89,9 +89,6 @@ interface FlowCardProps {
 }
 
 function FlowCard({ flow, onOpen, onEdit, onDelete }: FlowCardProps) {
-  const { label, className } = STATUS_CONFIG[flow.status];
-  const spark = SPARK_PRESETS[flow.status];
-
   return (
     <div
       onClick={onOpen}
@@ -101,9 +98,6 @@ function FlowCard({ flow, onOpen, onEdit, onDelete }: FlowCardProps) {
         <div className={`p-sm ${flow.iconBg} rounded-lg`}>
           <span className={`material-symbols-outlined ${flow.iconColor}`}>{flow.icon}</span>
         </div>
-        <span className={`${className} px-sm py-xs rounded-full font-label-caps text-label-caps`}>
-          {label}
-        </span>
       </div>
       <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">{flow.flowName}</h3>
       <p className="text-on-surface-variant text-body-sm mb-md font-code-sm">
@@ -114,13 +108,6 @@ function FlowCard({ flow, onOpen, onEdit, onDelete }: FlowCardProps) {
           {flow.globalURL}
         </p>
       )}
-      <div className="bg-surface-container p-sm rounded-lg border border-outline-variant mb-md flex items-center justify-between">
-        <div className="flex flex-col">
-          <span className="text-label-caps text-on-surface-variant mb-xs">STEPS</span>
-          <span className="font-code-md text-code-md text-primary">{flow.steps.length}</span>
-        </div>
-        <Sparkline bars={spark.bars} color={spark.color} />
-      </div>
       <div className="flex items-center justify-between border-t border-outline-variant pt-md">
         <div className="flex gap-sm">
           <button
@@ -162,8 +149,7 @@ export default function MyFlowsPage() {
   const [editingFlow, setEditingFlow] = useState<FlowRecord | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const projectFlows = flows.filter((f) => f.projectId === activeProjectId);
-  const filtered = projectFlows.filter((f) =>
+  const filtered = flows.filter((f) =>
     f.flowName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -183,12 +169,18 @@ export default function MyFlowsPage() {
     setIsModalOpen(true);
   }
 
-  function handleSaveModal(data: { flowName: string; status: FlowStatus; globalURL: string }) {
+  async function handleSaveModal(data: { flowName: string; status: FlowStatus; globalURL: string }) {
     if (editingFlow) {
-      //dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
+      const result = await editFlowAPI(editingFlow.id, data.flowName, data.globalURL);
+      if (result.success) {
+        dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
+      }
     } else {
-      //dispatch(createFlow({ ...data, projectId: activeProjectId ?? '' }));
-      router.push("/");
+      const result = await createFlowAPI(activeProjectId ?? '', data.flowName, data.globalURL);
+      if (result.success) {
+        dispatch(createFlow({ ...result.data, status: data.status }));
+        router.push("/");
+      }
     }
   }
 
@@ -197,34 +189,14 @@ export default function MyFlowsPage() {
     setDeleteConfirmId(flowId);
   }
 
-  function confirmDelete() {
-    if (deleteConfirmId) dispatch(deleteFlow(deleteConfirmId));
+  async function confirmDelete() {
+    if (!deleteConfirmId) return;
+    const result = await deleteFlowAPI(deleteConfirmId);
+    if (result.success) {
+      dispatch(deleteFlow(deleteConfirmId));
+    }
     setDeleteConfirmId(null);
   }
-
-  useEffect(() => {
-    const initPageData = async () => {
-      if(activeProject){
-        console.log('Hi! 2');
-        
-        const apiResponse = await getProjectFlows(activeProject.id);
-        console.log("Hi! 3");
-        
-        if(apiResponse.success){
-          console.log("Hi! 4");
-            
-            dispatch(setFlows(apiResponse.data));
-        }
-        else{
-          console.log("Hi! 5");
-
-          //Show a toast message that says there was an error
-        }
-      }
-    }
-
-    initPageData();
-  }, [activeProject]);
 
   return (
     <>
@@ -272,7 +244,7 @@ export default function MyFlowsPage() {
           </div>
           <div className="flex items-center gap-xs text-on-surface-variant text-body-sm mr-sm">
             <span className="w-2 h-2 rounded-full bg-secondary" />
-            <span>{projectFlows.filter((f) => f.status === "ACTIVE").length} Flows Active</span>
+            <span>{flows.filter((f) => f.status === "ACTIVE").length} Flows Active</span>
           </div>
         </div>
 

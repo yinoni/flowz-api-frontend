@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "./components/StoreProvider";
 import { ClientLayoutWrapper } from "./components/ClientLayoutWrapper";
+import { WebSocketProvider } from "./components/WebSocketProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,9 +37,11 @@ export default function RootLayout({
       </head>
       <body className="bg-background text-on-background h-screen flex flex-col overflow-hidden font-body-md text-body-md">
         <StoreProvider>
-          <ClientLayoutWrapper>
-            {children}
-          </ClientLayoutWrapper>
+          <WebSocketProvider>
+            <ClientLayoutWrapper>
+              {children}
+            </ClientLayoutWrapper>
+          </WebSocketProvider>
         </StoreProvider>
       </body>
     </html>

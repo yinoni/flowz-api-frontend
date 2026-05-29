@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "./store/store";
@@ -9,13 +9,19 @@ import {
   updateStepInFlow,
   removeStepFromFlow,
   setActiveFlow,
+  setFlowSteps,
   createFlow,
+  setExecutionId,
 } from "./store/flowsSlice";
 import type { Step, StepFormData } from "./store/stepsSlice";
 import NewRequestModal from "./components/NewRequestModal";
 import FlowCanvas from "./components/FlowCanvas";
 import GlobalVariableModal from "./components/GlobalVariableModal";
 import GlobalAssertionModal from "./components/GlobalAssertionModal";
+import { addStep as addStepAPI, createFlow as createFlowAPI, deleteStep as deleteStepAPI, editStep as editStepAPI, getFlowSteps } from "./api/flowRoute";
+import { executeFlow, getExecutionID } from "./api/flowExecutionAPI";
+import { useWebSocket } from "./components/WebSocketProvider";
+import { log } from "console";
 
 type LogStatus =
   | "STEP_PASSED"
@@ -98,10 +104,21 @@ function LogLine({ log }: { log: LogEntry }) {
 export default function Home() {
   const router = useRouter();
   const dispatch = useDispatch();
-  const { flows, activeFlowId } = useSelector((state: RootState) => state.flows);
+  const { flows, activeFlowId, executionId } = useSelector((state: RootState) => state.flows);
   const activeProjectId = useSelector((state: RootState) => state.projects.activeProjectId);
   const activeFlow = flows.find((f) => f.id === activeFlowId) ?? null;
   const steps = activeFlow?.steps ?? [];
+  const {stompClient, isConnected} = useWebSocket();
+  const subscriptionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!activeFlowId) return;
+    getFlowSteps(activeFlowId).then((result) => {
+      if (result.success) {
+        dispatch(setFlowSteps({ flowId: activeFlowId, steps: result.data }));
+      }
+    });
+  }, [activeFlowId]);
 
   const [logs] = useState<LogEntry[]>(INITIAL_LOGS);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -119,16 +136,112 @@ export default function Home() {
     setIsModalOpen(true);
   }
 
-  function handleSave(data: StepFormData) {
+  async function handleSave(data: StepFormData) {
     if (!activeFlowId) return;
     if (editingStep) {
-      dispatch(updateStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
+      const result = await editStepAPI(activeFlowId, editingStep.id, data);
+      if (result.success) {
+        dispatch(updateStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
+      }
     } else {
-      dispatch(addStepToFlow({ flowId: activeFlowId, stepData: data }));
+      const stepId = Date.now().toString();
+      const result = await addStepAPI(activeFlowId, stepId, data);
+      if (result.success) {
+        dispatch(addStepToFlow({ flowId: activeFlowId, stepData: data, stepId }));
+      }
     }
     setIsModalOpen(false);
     setEditingStep(null);
   }
+
+  async function handleDeleteStep(stepId: string) {
+    if (!activeFlowId) return;
+    const result = await deleteStepAPI(activeFlowId, stepId);
+    if (result.success) {
+      dispatch(removeStepFromFlow({ flowId: activeFlowId, stepId }));
+    }
+  }
+
+  const onNewFlowClick = async () => {
+    if(activeProjectId){
+      const newFlowResponse = await createFlowAPI(activeProjectId, 'Untitled Flow', '');
+      if(newFlowResponse.success){
+        dispatch(createFlow(newFlowResponse.data));
+      }
+      else{
+        //Throw here toast message with the error details
+        console.warn("Error while creating the flow! ===> ", newFlowResponse);
+      }
+    }
+    else{
+      console.warn("Warning! The active project ID is null!")
+    }
+  }
+
+  const onStartClick = async () => {
+    if(!activeFlow){
+      //Show an error toast message
+      return;
+    }
+    
+
+    if( executionId === null){
+      const newExecutionId = await getExecutionID(activeFlow.id);
+      if(newExecutionId.success){
+        dispatch(setExecutionId(newExecutionId.data));
+        startWebSocketSubscription(newExecutionId.data);
+      }  
+    }
+    else{
+      startWebSocketSubscription(executionId);
+    }
+  }
+
+    // פונקציית ההמשך שלך:
+    async function startWebSocketSubscription(id: string) {
+      
+      if(!stompClient)
+        return;
+      
+      const sub = await stompClient.subscribe(`/flow-events/${id}`, (message: any) => {
+        console.log('Message test ===> ', message);
+        
+        if(!message.body)
+          return;
+
+        const payload = JSON.parse(message.body);
+        console.log("Received status update from WS:", payload);
+
+        // 4. בדיקה האם ה-Flow סיים לרוץ
+        // (תתאים את השדה payload.status למה שחוזר מה-Backend שלך)
+        if (payload.status === "FLOW_COMPLETED" || payload.status === "FLOW_FAILED") {
+          
+          // א. קריאה לפונקציה החיצונית שרצית
+          handleExecutionFinished(payload.message);
+
+        }
+      });
+
+      subscriptionRef.current = sub;
+      const executeAPI = await executeFlow(id);
+      if(executeAPI.success){
+        console.log('The flow started to execute!');
+      }
+      else{
+        console.log('error!!!');
+        handleExecutionFinished("error!");
+      }
+      
+    }
+    
+
+    function handleExecutionFinished(result: any){
+      console.log("Closing WebSocket subscription... 🛑");
+      subscriptionRef.current.unsubscribe();
+      dispatch(setExecutionId(null));
+    }
+
+  
 
   // No active flow — prompt user to select or create one
   if (!activeFlow) {
@@ -152,9 +265,7 @@ export default function Home() {
                 My Flows
               </button>
               <button
-                onClick={() => {
-                    dispatch(createFlow({ flowName: "Untitled Flow", status: "DRAFT", projectId: activeProjectId ?? '' }));
-                }}
+                onClick={onNewFlowClick}
                 className="flex items-center gap-sm px-lg py-sm rounded-lg bg-primary text-on-primary-fixed font-bold hover:opacity-90 transition-all active:scale-95"
               >
                 <span className="material-symbols-outlined">add_circle</span>
@@ -183,9 +294,7 @@ export default function Home() {
         <FlowCanvas
           steps={steps}
           onStepClick={openEditModal}
-          onStepDelete={(stepId) =>
-            dispatch(removeStepFromFlow({ flowId: activeFlowId!, stepId }))
-          }
+          onStepDelete={handleDeleteStep}
         />
 
         {/* Right Inspector */}
@@ -313,7 +422,7 @@ export default function Home() {
               <a className="text-outline hover:text-tertiary transition-colors" href="#">Environment</a>
               <a className="text-outline hover:text-tertiary transition-colors" href="#">Console</a>
             </nav>
-            <button className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs hover:opacity-80 transition-all font-bold font-code-sm text-code-sm">
+            <button onClick={onStartClick} className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs hover:opacity-80 transition-all font-bold font-code-sm text-code-sm">
               <span className="material-symbols-outlined text-sm">play_arrow</span>
               Start
             </button>
