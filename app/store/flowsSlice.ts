@@ -5,13 +5,22 @@ type BackendStep = Omit<Step, 'position'>;
 
 export type FlowStatus = 'ACTIVE' | 'PAUSED' | 'DRAFT';
 
+export type FlowWSStatus = 'FLOW_STARTING' | 'FLOW_FAILED' | 'FLOW_COMPLETED' | 'STEP_FAILED' | 'STEP_PASSED' | 'COMPLETED';
+
+export interface FlowWSResponse {
+  message: string,
+  status: FlowWSStatus,
+  success: boolean
+}
+
 export interface FlowRecord {
   // Backend fields
   id: string;
   flowName: string;
   projectId: string;
   globalURL: string;
-  globalVariables: Record<string, unknown>;
+  globalHeaders: Record<string, string>;
+  globalVariables: Record<string, string>;
   steps: Step[];
   // Frontend-only display fields
   status: FlowStatus;
@@ -72,13 +81,14 @@ const flowsSlice = createSlice({
     },
     updateFlowMeta(
       state,
-      action: PayloadAction<{ id: string; flowName: string; status: FlowStatus; globalURL?: string }>
+      action: PayloadAction<{ id: string; flowName: string; globalURL?: string; globalHeaders?: Record<string, string>; globalVariables?: Record<string, string> }>
     ) {
       const flow = state.flows.find((f) => f.id === action.payload.id);
       if (flow) {
         flow.flowName = action.payload.flowName;
-        flow.status = action.payload.status;
         if (action.payload.globalURL !== undefined) flow.globalURL = action.payload.globalURL;
+        if (action.payload.globalHeaders !== undefined) flow.globalHeaders = action.payload.globalHeaders;
+        if (action.payload.globalVariables !== undefined) flow.globalVariables = action.payload.globalVariables;
         flow.lastModified = todayLabel();
       }
     },

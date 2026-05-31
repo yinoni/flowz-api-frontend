@@ -5,12 +5,14 @@ import type { StepFormData } from "../store/stepsSlice";
 const API_ROUTE = '/flow';
 
 
-export const createFlow = async (projectId: string, flowName: string, globalURL: string): Promise<APIResponse | APIErrorResponse> => {
+export const createFlow = async (projectId: string, flowName: string, globalURL: string, globalHeaders: Record<string, string> = {}, globalVariables: Record<string, string> = {}): Promise<APIResponse | APIErrorResponse> => {
     try {
         const apiResponse = await api.post(`${API_ROUTE}`, {
             projectId,
             flowName,
-            gloablURL: globalURL,
+            globalURL,
+            globalHeaders,
+            globalVariables,
         });
 
         return {
@@ -28,9 +30,9 @@ export const createFlow = async (projectId: string, flowName: string, globalURL:
     }
 }
 
-export const editFlow = async (id: string, flowName: string, globalURL: string): Promise<APIResponse | APIErrorResponse> => {
+export const editFlow = async (id: string, flowName: string, globalURL: string, globalHeaders: Record<string, string> = {}, globalVariables: Record<string, string> = {}): Promise<APIResponse | APIErrorResponse> => {
     try {
-        await api.patch(`${API_ROUTE}`, { id, flowName, globalURL });
+        await api.patch(`${API_ROUTE}`, { id, flowName, globalURL, globalHeaders, globalVariables });
 
         return {
             success: true,
@@ -87,7 +89,7 @@ export const addStep = async (flowId: string, stepId: string, stepData: StepForm
 
 export const editStep = async (flowId: string, stepId: string, stepData: StepFormData): Promise<APIResponse | APIErrorResponse> => {
     try {
-        await api.patch(`${API_ROUTE}/steps/${flowId}`, { ...stepData, id: stepId });
+        await api.put(`${API_ROUTE}/steps/${flowId}`, { ...stepData, id: stepId });
 
         return {
             success: true,

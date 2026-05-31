@@ -12,6 +12,7 @@ import {
   setFlowSteps,
   createFlow,
   setExecutionId,
+  FlowWSResponse,
 } from "./store/flowsSlice";
 import type { Step, StepFormData } from "./store/stepsSlice";
 import NewRequestModal from "./components/NewRequestModal";
@@ -21,7 +22,6 @@ import GlobalAssertionModal from "./components/GlobalAssertionModal";
 import { addStep as addStepAPI, createFlow as createFlowAPI, deleteStep as deleteStepAPI, editStep as editStepAPI, getFlowSteps } from "./api/flowRoute";
 import { executeFlow, getExecutionID } from "./api/flowExecutionAPI";
 import { useWebSocket } from "./components/WebSocketProvider";
-import { log } from "console";
 
 type LogStatus =
   | "STEP_PASSED"
@@ -38,32 +38,6 @@ interface LogEntry {
   message: string;
 }
 
-const INITIAL_LOGS: LogEntry[] = [
-  {
-    id: "1",
-    timestamp: "[10:04:22]",
-    status: "STEP_PASSED",
-    message: "STEP 1 COMPLETE: Login successful. Token extracted. (244ms)",
-  },
-  {
-    id: "2",
-    timestamp: "[10:04:23]",
-    status: "STEP_PASSED",
-    message: 'STEP 2 COMPLETE: Business "Nexus Corp" created. ID: 882910. (512ms)',
-  },
-  {
-    id: "3",
-    timestamp: "[10:04:24]",
-    status: "STEP_RUNNING",
-    message: "STEP 3 RUNNING: Saving business reference...",
-  },
-  {
-    id: "4",
-    timestamp: "",
-    status: "INFO",
-    message: "Connecting to localhost:8080/api/users/saved/882910...",
-  },
-];
 
 function LogLine({ log }: { log: LogEntry }) {
   if (log.status === "STEP_PASSED" || log.status === "FLOW_COMPLETED") {
@@ -120,7 +94,14 @@ export default function Home() {
     });
   }, [activeFlowId]);
 
-  const [logs] = useState<LogEntry[]>(INITIAL_LOGS);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  function addLog(status: LogStatus, message: string) {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const timestamp = `[${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}]`;
+    setLogs((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, timestamp, status, message }]);
+  }
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<Step | null>(null);
   const [isVariableModalOpen, setIsVariableModalOpen] = useState(false);
@@ -185,6 +166,8 @@ export default function Home() {
     }
     
 
+    setLogs([]);
+
     if( executionId === null){
       const newExecutionId = await getExecutionID(activeFlow.id);
       if(newExecutionId.success){
@@ -196,39 +179,67 @@ export default function Home() {
       startWebSocketSubscription(executionId);
     }
   }
+  
+
+  const wsStatusHandler: Record<string, (payload: FlowWSResponse) => void> = {
+    "FLOW_STARTING": (payload) => {
+      addLog("FLOW_STARTING", "Flow execution is starting...");
+    },
+    "FLOW_COMPLETED": (payload) => {
+      addLog("FLOW_COMPLETED", "Flow tests completed successfully.");
+      handleExecutionFinished(payload.message);
+    },
+    "FLOW_FAILED": (payload) => {
+      addLog("STEP_FAILED", "Flow Failed!");
+      addLog("STEP_FAILED", payload.message);
+    },
+    "COMPLETED": (payload) => {
+      addLog("FLOW_COMPLETED", "Flow tests completed successfully.");
+      handleExecutionFinished(payload.message);
+    },
+    "STEP_PASSED": (payload) => {
+      addLog("STEP_PASSED", payload.message);
+    },
+    "STEP_FAILED": (payload) => {
+      addLog("STEP_FAILED", "Step Failed!");
+      addLog("STEP_FAILED", payload.message);
+    },
+  }
 
     // פונקציית ההמשך שלך:
     async function startWebSocketSubscription(id: string) {
       
       if(!stompClient)
         return;
-      
-      const sub = await stompClient.subscribe(`/flow-events/${id}`, (message: any) => {
-        console.log('Message test ===> ', message);
-        
-        if(!message.body)
-          return;
 
-        const payload = JSON.parse(message.body);
-        console.log("Received status update from WS:", payload);
+      const waitForSubscription = new Promise<any>((resolve) => {
+        const sub = stompClient.subscribe(`/flow-events/${id}`, (message: any) => {        
+          if(!message.body)
+            return;
+  
+          const payload: FlowWSResponse = JSON.parse(message.body);
 
-        // 4. בדיקה האם ה-Flow סיים לרוץ
-        // (תתאים את השדה payload.status למה שחוזר מה-Backend שלך)
-        if (payload.status === "FLOW_COMPLETED" || payload.status === "FLOW_FAILED") {
+          const handler = wsStatusHandler[payload.status];
+
+          handler(payload);
+
+          if(payload.success === false)
+            handleExecutionFinished("FAILED!");
           
-          // א. קריאה לפונקציה החיצונית שרצית
-          handleExecutionFinished(payload.message);
+        });
+  
+        subscriptionRef.current = sub;
 
-        }
+        setTimeout(() => {
+          resolve(sub);
+        }, 100);
       });
 
-      subscriptionRef.current = sub;
+      await waitForSubscription;
+
       const executeAPI = await executeFlow(id);
-      if(executeAPI.success){
-        console.log('The flow started to execute!');
-      }
-      else{
-        console.log('error!!!');
+      if(!executeAPI.success){
+        addLog("STEP_FAILED", "Failed to trigger flow execution.");
         handleExecutionFinished("error!");
       }
       
@@ -236,7 +247,6 @@ export default function Home() {
     
 
     function handleExecutionFinished(result: any){
-      console.log("Closing WebSocket subscription... 🛑");
       subscriptionRef.current.unsubscribe();
       dispatch(setExecutionId(null));
     }

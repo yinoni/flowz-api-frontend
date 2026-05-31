@@ -10,7 +10,6 @@ import {
   updateFlowMeta,
   setActiveFlow,
   type FlowRecord,
-  type FlowStatus,
   setFlows,
 } from "../store/flowsSlice";
 import FlowModal from "../components/FlowModal";
@@ -169,16 +168,16 @@ export default function MyFlowsPage() {
     setIsModalOpen(true);
   }
 
-  async function handleSaveModal(data: { flowName: string; status: FlowStatus; globalURL: string }) {
+  async function handleSaveModal(data: { flowName: string; globalURL: string; globalHeaders: Record<string, string>; globalVariables: Record<string, string> }) {
     if (editingFlow) {
-      const result = await editFlowAPI(editingFlow.id, data.flowName, data.globalURL);
+      const result = await editFlowAPI(editingFlow.id, data.flowName, data.globalURL, data.globalHeaders, data.globalVariables);
       if (result.success) {
         dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
       }
     } else {
-      const result = await createFlowAPI(activeProjectId ?? '', data.flowName, data.globalURL);
+      const result = await createFlowAPI(activeProjectId ?? '', data.flowName, data.globalURL, data.globalHeaders, data.globalVariables);
       if (result.success) {
-        dispatch(createFlow({ ...result.data, status: data.status }));
+        dispatch(createFlow(result.data));
         router.push("/");
       }
     }
@@ -297,7 +296,7 @@ export default function MyFlowsPage() {
         onSave={handleSaveModal}
         initialData={
           editingFlow
-            ? { flowName: editingFlow.flowName, status: editingFlow.status, globalURL: editingFlow.globalURL }
+            ? { flowName: editingFlow.flowName, globalURL: editingFlow.globalURL, globalHeaders: editingFlow.globalHeaders ?? {}, globalVariables: editingFlow.globalVariables ?? {} }
             : null
         }
       />

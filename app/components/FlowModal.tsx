@@ -1,31 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { FlowStatus } from "../store/flowsSlice";
+import KVEditor, { type KVPair, recordToKV, kvToRecord } from "./KVEditor";
 
 interface FlowModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { flowName: string; status: FlowStatus; globalURL: string }) => void;
-  initialData?: { flowName: string; status: FlowStatus; globalURL: string } | null;
+  onSave: (data: { flowName: string; globalURL: string; globalHeaders: Record<string, string>; globalVariables: Record<string, string> }) => void;
+  initialData?: { flowName: string; globalURL: string; globalHeaders: Record<string, string>; globalVariables: Record<string, string> } | null;
 }
-
-const STATUS_OPTIONS: { value: FlowStatus; label: string }[] = [
-  { value: "ACTIVE", label: "Active" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "PAUSED", label: "Paused" },
-];
 
 export default function FlowModal({ isOpen, onClose, onSave, initialData }: FlowModalProps) {
   const [flowName, setFlowName] = useState("");
-  const [status, setStatus] = useState<FlowStatus>("DRAFT");
   const [globalURL, setGlobalURL] = useState("");
+  const [globalHeaders, setGlobalHeaders] = useState<KVPair[]>([]);
+  const [globalVariables, setGlobalVariables] = useState<KVPair[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       setFlowName(initialData?.flowName ?? "");
-      setStatus(initialData?.status ?? "DRAFT");
       setGlobalURL(initialData?.globalURL ?? "");
+      setGlobalHeaders(recordToKV(initialData?.globalHeaders ?? {}));
+      setGlobalVariables(recordToKV(initialData?.globalVariables ?? {}));
     }
   }, [isOpen, initialData]);
 
@@ -36,7 +32,12 @@ export default function FlowModal({ isOpen, onClose, onSave, initialData }: Flow
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!flowName.trim()) return;
-    onSave({ flowName: flowName.trim(), status, globalURL: globalURL.trim() });
+    onSave({
+      flowName: flowName.trim(),
+      globalURL: globalURL.trim(),
+      globalHeaders: kvToRecord(globalHeaders),
+      globalVariables: kvToRecord(globalVariables),
+    });
     onClose();
   }
 
@@ -62,7 +63,7 @@ export default function FlowModal({ isOpen, onClose, onSave, initialData }: Flow
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-lg space-y-lg">
+        <form onSubmit={handleSubmit} className="p-lg space-y-lg max-h-[70vh] overflow-y-auto custom-scrollbar">
           {/* Flow Name */}
           <div>
             <label className="text-[9px] text-outline uppercase block mb-xs tracking-widest">
@@ -92,30 +93,33 @@ export default function FlowModal({ isOpen, onClose, onSave, initialData }: Flow
             />
           </div>
 
-          {/* Status */}
+          {/* Global Headers */}
           <div>
             <label className="text-[9px] text-outline uppercase block mb-xs tracking-widest">
-              Status
+              Global Headers
             </label>
-            <div className="flex gap-sm">
-              {STATUS_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setStatus(opt.value)}
-                  className={`flex-1 py-sm rounded-lg border font-label-caps text-label-caps transition-all ${
-                    status === opt.value
-                      ? opt.value === "ACTIVE"
-                        ? "border-secondary bg-secondary-container text-on-secondary-container"
-                        : opt.value === "PAUSED"
-                        ? "border-outline bg-surface-container-highest text-on-surface"
-                        : "border-primary bg-primary/10 text-primary"
-                      : "border-outline-variant text-on-surface-variant hover:border-outline"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className="bg-surface-container-high border border-outline-variant rounded-lg p-md">
+              <KVEditor
+                pairs={globalHeaders}
+                onChange={setGlobalHeaders}
+                keyPlaceholder="Header name"
+                valuePlaceholder="Value or {{variable}}"
+              />
+            </div>
+          </div>
+
+          {/* Global Variables */}
+          <div>
+            <label className="text-[9px] text-outline uppercase block mb-xs tracking-widest">
+              Global Variables
+            </label>
+            <div className="bg-surface-container-high border border-outline-variant rounded-lg p-md">
+              <KVEditor
+                pairs={globalVariables}
+                onChange={setGlobalVariables}
+                keyPlaceholder="Variable name"
+                valuePlaceholder="Value"
+              />
             </div>
           </div>
 

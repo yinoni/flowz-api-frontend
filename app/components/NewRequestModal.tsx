@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import type { Step, StepFormData } from "../store/stepsSlice";
+import SelectDropdown from "./SelectDropdown";
+import type { SelectOption } from "./SelectDropdown";
+import KVEditor, { type KVPair, recordToKV, kvToRecord } from "./KVEditor";
 
 type Tab = "body" | "headers" | "extract" | "assertions";
-
-interface KVPair {
-  key: string;
-  value: string;
-}
 
 interface Props {
   isOpen: boolean;
@@ -18,75 +16,23 @@ interface Props {
   defaultUrl?: string;
 }
 
-function KVEditor({
-  pairs,
-  onChange,
-  keyPlaceholder,
-  valuePlaceholder,
-}: {
-  pairs: KVPair[];
-  onChange: (pairs: KVPair[]) => void;
-  keyPlaceholder: string;
-  valuePlaceholder: string;
-}) {
-  function update(index: number, field: "key" | "value", val: string) {
-    const next = pairs.map((p, i) => (i === index ? { ...p, [field]: val } : p));
-    onChange(next);
-  }
-  function remove(index: number) {
-    onChange(pairs.filter((_, i) => i !== index));
-  }
-  function add() {
-    onChange([...pairs, { key: "", value: "" }]);
-  }
+const HTTP_METHODS: SelectOption[] = [
+  { label: "GET", value: "GET" },
+  { label: "POST", value: "POST" },
+  { label: "PUT", value: "PUT" },
+  { label: "PATCH", value: "PATCH" },
+  { label: "DELETE", value: "DELETE" },
+];
 
-  return (
-    <div className="space-y-sm">
-      {pairs.length === 0 && (
-        <p className="text-outline italic font-body-sm text-body-sm text-center py-lg">
-          No entries defined.
-        </p>
-      )}
-      {pairs.map((pair, i) => (
-        <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-sm items-center">
-          <input
-            value={pair.key}
-            onChange={(e) => update(i, "key", e.target.value)}
-            placeholder={keyPlaceholder}
-            className="bg-surface-container-lowest border border-outline-variant rounded-lg p-sm font-code-sm text-code-sm text-on-surface outline-none focus:border-primary transition-colors"
-          />
-          <input
-            value={pair.value}
-            onChange={(e) => update(i, "value", e.target.value)}
-            placeholder={valuePlaceholder}
-            className="bg-surface-container-lowest border border-outline-variant rounded-lg p-sm font-code-sm text-code-sm text-secondary outline-none focus:border-secondary transition-colors"
-          />
-          <button
-            onClick={() => remove(i)}
-            className="text-on-surface-variant hover:text-error transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-      ))}
-      <button
-        onClick={add}
-        className="text-primary font-label-caps text-label-caps hover:underline flex items-center gap-xs mt-xs"
-      >
-        <span className="material-symbols-outlined text-[16px]">add</span>
-        ADD ROW
-      </button>
-    </div>
-  );
-}
-
-function recordToKV(record: Record<string, string>): KVPair[] {
-  return Object.entries(record).map(([key, value]) => ({ key, value }));
-}
-
-function kvToRecord(pairs: KVPair[]): Record<string, string> {
-  return Object.fromEntries(pairs.filter((p) => p.key.trim()).map((p) => [p.key, p.value]));
-}
+const CONTENT_TYPES: SelectOption[] = [
+  { label: "Raw", value: "text/plain" },
+  { label: "JSON", value: "application/json" },
+  { label: "XML", value: "application/xml" },
+  { label: "HTML", value: "text/html" },
+  { label: "Form URL-Encoded", value: "application/x-www-form-urlencoded" },
+  { label: "Form Data", value: "multipart/form-data" },
+  { label: "JavaScript", value: "application/javascript" },
+];
 
 export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, defaultUrl }: Props) {
   const isEditing = !!initialStep;
@@ -99,6 +45,7 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
   const [headers, setHeaders] = useState<KVPair[]>([]);
   const [extract, setExtract] = useState<KVPair[]>([]);
   const [assertions, setAssertions] = useState<KVPair[]>([]);
+  const [contentType, setContentType] = useState("text/plain");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -107,9 +54,12 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
       setMethod(initialStep.httpMethod);
       setUrl(initialStep.url);
       setBody(initialStep.body);
-      setHeaders(recordToKV(initialStep.headers));
+      const { "Content-Type": _ct, ...headersWithoutCT } = initialStep.headers;
+      setHeaders(recordToKV(headersWithoutCT));
       setExtract(recordToKV(initialStep.extract));
       setAssertions(recordToKV(initialStep.assertions));
+      const existingCT = initialStep.headers["Content-Type"];
+      setContentType(existingCT && CONTENT_TYPES.some((ct) => ct.value === existingCT) ? existingCT : "text/plain");
     } else {
       setTitle("");
       setMethod("POST");
@@ -118,6 +68,7 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
       setHeaders([]);
       setExtract([]);
       setAssertions([]);
+      setContentType("text/plain");
     }
     setActiveTab("body");
   }, [isOpen, initialStep]);
@@ -130,7 +81,7 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
       httpMethod: method,
       url,
       body,
-      headers: kvToRecord(headers),
+      headers: body.trim() ? { ...kvToRecord(headers), "Content-Type": contentType } : kvToRecord(headers),
       extract: kvToRecord(extract),
       assertions: kvToRecord(assertions),
     });
@@ -193,20 +144,12 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
           {/* Method + URL */}
           <div className="flex gap-md">
             <div className="w-32 shrink-0">
-              <label className="block font-label-caps text-label-caps text-outline mb-xs">
-                METHOD
-              </label>
-              <select
+              <SelectDropdown
+                label="METHOD"
+                options={HTTP_METHODS}
                 value={method}
-                onChange={(e) => setMethod(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-sm text-on-surface font-code-md text-code-md focus:border-primary outline-none transition-colors cursor-pointer appearance-none"
-              >
-                <option>GET</option>
-                <option>POST</option>
-                <option>PUT</option>
-                <option>PATCH</option>
-                <option>DELETE</option>
-              </select>
+                onChange={setMethod}
+              />
             </div>
             <div className="flex-1">
               <label className="block font-label-caps text-label-caps text-outline mb-xs">URL</label>
@@ -239,18 +182,24 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
             </div>
             <div className="p-md min-h-[160px]">
               {activeTab === "body" && (
-                <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-sm relative">
-                  <div className="absolute top-2 right-2 font-code-sm text-code-sm text-outline-variant pointer-events-none">
-                    JSON
-                  </div>
-                  <textarea
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    rows={6}
-                    spellCheck={false}
-                    placeholder='{ "key": "value" }'
-                    className="w-full bg-transparent border-none text-secondary font-code-md text-code-md focus:ring-0 resize-none outline-none placeholder:text-outline-variant"
+                <div className="space-y-sm">
+                  <SelectDropdown
+                    label="CONTENT TYPE"
+                    layout="inline"
+                    options={CONTENT_TYPES}
+                    value={contentType}
+                    onChange={setContentType}
                   />
+                  <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-sm">
+                    <textarea
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      rows={6}
+                      spellCheck={false}
+                      placeholder='{ "key": "value" }'
+                      className="w-full bg-transparent border-none text-secondary font-code-md text-code-md focus:ring-0 resize-none outline-none placeholder:text-outline-variant"
+                    />
+                  </div>
                 </div>
               )}
               {activeTab === "headers" && (
