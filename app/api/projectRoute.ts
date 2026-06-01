@@ -1,4 +1,3 @@
-import { log } from "console";
 import api, { APIErrorResponse, APIResponse } from "./apiConfig";
 
 
@@ -21,6 +20,24 @@ export const createProject = async (projectName: string): Promise<APIResponse | 
         };
 
         return errorBody;
+    }
+}
+
+export const updateProject = async (projectId: string, projectName: string): Promise<APIResponse | APIErrorResponse> => {
+    try {
+        const apiResponse = await api.patch(`${API_ROUTE}`, { projectId: projectId, projectName });
+        return { success: true, data: apiResponse.data, msg: 'Project updated successfully' };
+    } catch (error: any) {
+        return { success: false, ...error.response.data };
+    }
+}
+
+export const deleteProject = async (projectId: string): Promise<APIResponse | APIErrorResponse> => {
+    try {
+        await api.delete(`${API_ROUTE}`, { params: { projectId } });
+        return { success: true, data: null, msg: 'Project deleted successfully' };
+    } catch (error: any) {
+        return { success: false, ...error.response.data };
     }
 }
 

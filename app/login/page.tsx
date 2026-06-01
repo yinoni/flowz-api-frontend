@@ -7,13 +7,14 @@ import { useDispatch } from "react-redux";
 import { loginSuccess } from "../store/userSlice";
 import type { AuthenticationRequest, SignUpRequest } from "../store/userSlice";
 import { InputField, PasswordField } from "../components/InputField";
-import { login, signup } from "../api/authAPI";
+import { googleLogin as googleLoginEndpoint, login, signup } from "../api/authAPI";
 import { safeJwtDecode } from "../utils/utils";
 import { AuthErrorResponse, AuthResponse } from "../types";
 import { getUserProjects } from "../api/projectRoute";
 import { setProjects } from "../store/projectsSlice";
 import { getProjectFlows } from "../api/flowRoute";
 import { setFlows } from "../store/flowsSlice";
+import { GoogleLogin } from "@react-oauth/google";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -69,14 +70,13 @@ export default function LoginPage() {
       return;
     }
 
-    let apiResponse;
-
     if (isSignUp) {
-      apiResponse = await signup(form);
-    } else {
-      apiResponse = await login(form.email, form.password);
+      const apiResponse = await signup(form);
+      await postAuth(apiResponse);
+      return;
     }
 
+    const apiResponse = await login(form.email, form.password);
     await postAuth(apiResponse);
   }
 
@@ -84,31 +84,46 @@ export default function LoginPage() {
     const decoded: any | undefined = safeJwtDecode(jwt);
     if(!decoded)
       return;
-
+    
     await dispatch(loginSuccess({
-      user: {
-        id: decoded.id,
-        username: decoded.username,
-        email: decoded.sub
-      },
-      token: jwt
+      user: { id: decoded.id, username: decoded.username, email: decoded.sub },
+      token: jwt,
+      verified: !!decoded.verified,
     }));
 
+    if (!decoded.verified) {
+      router.push(`/verify-email?email=${encodeURIComponent(decoded.sub)}`);
+      return;
+    }
+
     const usersProjectsResponse = await getUserProjects();
-    
+
     if(usersProjectsResponse.success && usersProjectsResponse.data.length > 0){
       const firstProject = usersProjectsResponse.data[0];
-
       await dispatch(setProjects(usersProjectsResponse.data));
-
       const projectFlowsResponse = await getProjectFlows(firstProject.id);
-      
       if(projectFlowsResponse.success){
         await dispatch(setFlows(projectFlowsResponse.data));
       }
     }
     router.push("/flows");
-    
+  }
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    // 1. מחלצים את ה-ID Token שגוגל החזירה
+    const idToken = credentialResponse.credential; 
+
+    if (!idToken) {
+      console.error("Google authentication failed: No token returned");
+      return;
+    }
+
+    const apiResponse = await googleLoginEndpoint(idToken);
+    postAuth(apiResponse);
+  }
+
+  const handleGoogleError = async () => {
+    console.error('Google Login Failed');
   }
 
   return (
@@ -221,18 +236,13 @@ export default function LoginPage() {
             </div>
 
             {/* Google */}
-            <button
-              type="button"
-              className="w-full bg-surface-container-high border border-outline-variant rounded-lg py-sm flex items-center justify-center gap-md hover:border-outline hover:bg-surface-variant transition-all font-body-md text-on-surface-variant hover:text-on-surface"
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.658 14.013 17.64 11.705 17.64 9.2z"/>
-                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-                <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
-                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"/>
-              </svg>
-              Continue with Google
-            </button>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              //useOneTap // אופציונלי: מקפיץ חלונית קטנה בצד המסך ללוגין מהיר בלחיצה אחת
+              theme="filled_blue"
+              shape="pill"
+            />
           </div>
 
           {/* Footer toggle */}

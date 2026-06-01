@@ -7,25 +7,28 @@ import type { RootState } from "../store/store";
 import { TopNav } from "./TopNav";
 import { Sidebar } from "./Sidebar";
 
-const AUTH_ROUTES = ["/login"];
+const AUTH_ROUTES = ["/login", "/verify-email"];
 
 export function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isAuthenticated = useSelector((state: RootState) => state.user.isAuthenticated);
+  const verified = useSelector((state: RootState) => state.user.verified);
   const isAuthPage = AUTH_ROUTES.includes(pathname);
 
   useEffect(() => {
     if (!isAuthenticated && !isAuthPage) {
       router.replace("/login");
+    } else if (isAuthenticated && !verified && pathname !== "/verify-email") {
+      router.replace("/verify-email");
     }
-  }, [isAuthenticated, isAuthPage, router]);
+  }, [isAuthenticated, verified, isAuthPage, pathname, router]);
 
   if (isAuthPage) {
     return <>{children}</>;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !verified) {
     return null;
   }
 

@@ -10,7 +10,8 @@ export type FlowWSStatus = 'FLOW_STARTING' | 'FLOW_FAILED' | 'FLOW_COMPLETED' | 
 export interface FlowWSResponse {
   message: string,
   status: FlowWSStatus,
-  success: boolean
+  success: boolean,
+  [key: string]: unknown  // dynamic stepId → boolean field
 }
 
 export interface FlowRecord {
@@ -55,6 +56,8 @@ const flowsSlice = createSlice({
       state.flows = payloadFlows;
       if(payloadFlows.length > 0)
         state.activeFlowId = payloadFlows[0].id;
+      else
+        state.activeFlowId = null;
     },
     createFlow(
       state,

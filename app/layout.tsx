@@ -4,6 +4,7 @@ import "./globals.css";
 import { StoreProvider } from "./components/StoreProvider";
 import { ClientLayoutWrapper } from "./components/ClientLayoutWrapper";
 import { WebSocketProvider } from "./components/WebSocketProvider";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,6 +28,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full`}>
       <head>
@@ -37,11 +40,13 @@ export default function RootLayout({
       </head>
       <body className="bg-background text-on-background h-screen flex flex-col overflow-hidden font-body-md text-body-md">
         <StoreProvider>
-          <WebSocketProvider>
-            <ClientLayoutWrapper>
-              {children}
-            </ClientLayoutWrapper>
-          </WebSocketProvider>
+          <GoogleOAuthProvider clientId={clientId}>
+            <WebSocketProvider>
+              <ClientLayoutWrapper>
+                {children}
+              </ClientLayoutWrapper>
+            </WebSocketProvider>
+          </GoogleOAuthProvider>
         </StoreProvider>
       </body>
     </html>

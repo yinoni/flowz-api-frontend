@@ -95,6 +95,15 @@ export default function Home() {
   }, [activeFlowId]);
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [stepResults, setStepResults] = useState<Record<string, boolean>>({});
+
+  const KNOWN_WS_KEYS = new Set(["status", "success", "message"]);
+  function extractStepResult(payload: FlowWSResponse): { stepId: string; passed: boolean } | null {
+    const stepId = Object.keys(payload).find((k) => !KNOWN_WS_KEYS.has(k));
+    if (!stepId) return null;
+    return { stepId, passed: payload[stepId] as boolean };
+  }
+
   function addLog(status: LogStatus, message: string) {
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, "0");
@@ -167,6 +176,7 @@ export default function Home() {
     
 
     setLogs([]);
+    setStepResults({});
 
     if( executionId === null){
       const newExecutionId = await getExecutionID(activeFlow.id);
@@ -199,10 +209,14 @@ export default function Home() {
     },
     "STEP_PASSED": (payload) => {
       addLog("STEP_PASSED", payload.message);
+      const result = extractStepResult(payload);
+      if (result) setStepResults((prev) => ({ ...prev, [result.stepId]: true }));
     },
     "STEP_FAILED": (payload) => {
       addLog("STEP_FAILED", "Step Failed!");
       addLog("STEP_FAILED", payload.message);
+      const result = extractStepResult(payload);
+      if (result) setStepResults((prev) => ({ ...prev, [result.stepId]: false }));
     },
   }
 
@@ -305,6 +319,7 @@ export default function Home() {
           steps={steps}
           onStepClick={openEditModal}
           onStepDelete={handleDeleteStep}
+          stepResults={stepResults}
         />
 
         {/* Right Inspector */}

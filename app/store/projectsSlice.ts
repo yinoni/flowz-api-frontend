@@ -32,11 +32,20 @@ const projectsSlice = createSlice({
       state.projects.push(project);
       state.activeProjectId = project.id;
     },
-    setActiveProject(state, action: PayloadAction<string>) {      
+    setActiveProject(state, action: PayloadAction<string>) {
       state.activeProjectId = action.payload;
+    },
+    deleteProject(state, action: PayloadAction<string>) {
+      state.projects = state.projects.filter((p) => p.id !== action.payload);
+      if (state.activeProjectId === action.payload)
+        state.activeProjectId = state.projects.length > 0 ? state.projects[0].id : null;
+    },
+    updateProject(state, action: PayloadAction<{ id: string; projectName: string }>) {
+      const project = state.projects.find((p) => p.id === action.payload.id);
+      if (project) project.projectName = action.payload.projectName;
     },
   },
 });
 
-export const { setProjects, createProject, setActiveProject } = projectsSlice.actions;
+export const { setProjects, createProject, setActiveProject, deleteProject, updateProject } = projectsSlice.actions;
 export default projectsSlice.reducer;

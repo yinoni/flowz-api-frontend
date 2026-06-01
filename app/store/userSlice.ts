@@ -24,22 +24,25 @@ interface UserState {
   currentUser: UserDTO | null;
   token: string | null;
   isAuthenticated: boolean;
+  verified: boolean;
 }
 
 const initialState: UserState = {
   currentUser: null,
   token: null,
   isAuthenticated: false,
+  verified: false,
 };
 
 const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
-    loginSuccess(state, action: PayloadAction<{ user: UserDTO; token: string }>) {      
+    loginSuccess(state, action: PayloadAction<{ user: UserDTO; token: string; verified: boolean }>) {
       state.currentUser = action.payload.user;
       state.token = action.payload.token;
       state.isAuthenticated = true;
+      state.verified = action.payload.verified;
     },
     updateUser(state, action: PayloadAction<Partial<UserDTO>>) {
       if (state.currentUser) {

@@ -7,16 +7,23 @@ interface StepNodeProps {
   step: Step;
   onClick: () => void;
   onDelete: () => void;
+  stepResult?: boolean;
 }
 
-function StepNode({ step, onClick, onDelete }: StepNodeProps) {
+function StepNode({ step, onClick, onDelete, stepResult }: StepNodeProps) {
   const hasHeaders = Object.keys(step.headers).length > 0;
   const hasExtract = Object.keys(step.extract).length > 0;
   const hasAssertions = Object.keys(step.assertions).length > 0;
 
   return (
     <div
-      className="step-node absolute w-[320px] bg-surface-container-high border border-outline-variant rounded-lg overflow-hidden shadow-xl z-10 cursor-pointer hover:border-primary-container"
+      className={`step-node absolute w-[320px] bg-surface-container-high border-2 rounded-lg overflow-hidden shadow-xl z-10 cursor-pointer transition-colors ${
+        stepResult === true
+          ? "border-secondary shadow-secondary/20"
+          : stepResult === false
+          ? "border-error shadow-error/20"
+          : "border-outline-variant hover:border-primary-container"
+      }`}
       style={{ left: step.position.x, top: step.position.y }}
       onClick={onClick}
     >
@@ -99,9 +106,10 @@ interface FlowCanvasProps {
   steps: Step[];
   onStepClick: (step: Step) => void;
   onStepDelete: (stepId: string) => void;
+  stepResults?: Record<string, boolean>;
 }
 
-export default function FlowCanvas({ steps, onStepClick, onStepDelete }: FlowCanvasProps) {
+export default function FlowCanvas({ steps, onStepClick, onStepDelete, stepResults }: FlowCanvasProps) {
   const canvasRef = useRef<HTMLElement>(null);
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -199,6 +207,7 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete }: FlowCan
             step={step}
             onClick={() => onStepClick(step)}
             onDelete={() => onStepDelete(step.id)}
+            stepResult={stepResults?.[step.id]}
           />
         ))}
       </div>
