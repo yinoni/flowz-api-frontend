@@ -22,7 +22,7 @@ export const login = async (email: string, password: string): Promise<AuthRespon
     catch(error: any){
         return {
             success: false,
-            msg: 'Email or password incorrect!'
+            msg: error.response.data.message
         }
     }  
 }
@@ -38,14 +38,9 @@ export const signup = async (request: SignUpRequest): Promise<AuthResponse | Aut
         }
     }
     catch(error: any){
-        let msg = 'Error while signing up... try again later'
-        if (error.response && error.response.status === 409) {
-            msg = 'Email already exists';
-        }
-        
         return {
             success: false,
-            msg: msg
+            msg: error.response.data.message
         }
     }
 }
@@ -55,7 +50,7 @@ export const googleLogin = async (token: any): Promise<AuthResponse | AuthErrorR
     try{
         const response = await api.post(`${API_ROUTE}/google`, {
             token: token
-        });
+        });        
 
         return {
             success: true,
@@ -102,6 +97,24 @@ export const resendCode = async (): Promise<AuthResponse | AuthErrorResponse> =>
         }
     }
     catch(error: any){
+        return {
+            success: false,
+            msg: error.response.data.message
+        }
+    }
+}
+
+export const refresh = async (): Promise<AuthResponse | AuthErrorResponse> => {
+    try{
+        const response = await api.post(`${API_ROUTE}/refresh`);
+
+        return {
+            success: true,
+            msg: "New access token",
+            data: response.data
+        }
+    }
+    catch(error: any){        
         return {
             success: false,
             msg: error.response.data.message

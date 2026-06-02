@@ -54,8 +54,11 @@ const userSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
     },
+    setToken(state, action: PayloadAction<string | null>){
+      state.token = action.payload;
+    }
   },
 });
 
-export const { loginSuccess, updateUser, logout } = userSlice.actions;
+export const { loginSuccess, updateUser, logout, setToken } = userSlice.actions;
 export default userSlice.reducer;

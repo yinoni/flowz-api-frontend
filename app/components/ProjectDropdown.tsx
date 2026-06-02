@@ -5,6 +5,7 @@ import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "../store/store";
 import { createProject, deleteProject, updateProject, ProjectRecord, setActiveProject } from "../store/projectsSlice";
 import { createProject as createProjectAPI, deleteProject as deleteProjectAPI, updateProject as updateProjectAPI } from "../api/projectRoute";
+import { useToast } from "./ToastProvider";
 import { getProjectFlows as getProjectFlowsAPI } from "../api/flowRoute";
 import { setActiveFlow, setFlows } from "../store/flowsSlice";
 
@@ -104,6 +105,7 @@ function ProjectDDRow({
 
 export function ProjectDropdown() {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const { projects, activeProjectId } = useSelector((state: RootState) => state.projects);
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
@@ -156,16 +158,24 @@ export function ProjectDropdown() {
     e.preventDefault();
     if (!newName.trim()) return;
     const result = await createProjectAPI(newName.trim());
-    if (result.success) dispatch(createProject(result.data));
+    if (result.success) {
+      dispatch(createProject(result.data));
+    } else {
+      showToast(result.message ?? "Failed to create project. Please try again.");
+    }
     setIsOpen(false);
     setIsCreating(false);
     setNewName("");
   }
 
   async function handleEditSave() {
-    if (!editingProject || !editingName.trim()) return;    
+    if (!editingProject || !editingName.trim()) return;
     const result = await updateProjectAPI(editingProject.id, editingName.trim());
-    if (result.success) dispatch(updateProject({ id: editingProject.id, projectName: editingName.trim() }));
+    if (result.success) {
+      dispatch(updateProject({ id: editingProject.id, projectName: editingName.trim() }));
+    } else {
+      showToast(result.message ?? "Failed to rename project. Please try again.");
+    }
     setEditingProject(null);
     setEditingName("");
   }
@@ -174,9 +184,10 @@ export function ProjectDropdown() {
     if (!deleteConfirmId) return;
     const result = await deleteProjectAPI(deleteConfirmId);
     if (result.success) {
-      await dispatch(deleteProject(deleteConfirmId));
+      dispatch(deleteProject(deleteConfirmId));
+    } else {
+      showToast(result.message ?? "Failed to delete project. Please try again.");
     }
-
     setDeleteConfirmId(null);
   }
   

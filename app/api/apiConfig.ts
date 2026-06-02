@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { store } from '@/app/store/store';
 import { log } from 'console';
-import { logout } from '../store/userSlice';
+import { logout, setToken } from '../store/userSlice';
+import { refresh as refreshAPI } from './authAPI';
 
 
 export interface APIResponse{
@@ -23,6 +24,7 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    withCredentials: true
 });
 
 
@@ -38,22 +40,27 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use((response) => {
     return response;
-}, (error) => {
+}, async (error) => {
     const status = error.status;
+    const originalRequest = error.config;
 
     if(status === 401){
         console.warn('UNAUTHORIZED!');
-        // 1. קודם כל מוודאים שאנחנו רצים בצד הלקוח (בדפדפן)
         if (typeof window !== 'undefined') {
-            // 2. בדיקה: האם המשתמש *לא* נמצא כרגע בעמוד הלוגין?
             if (window.location.pathname !== '/login') {
-                store.dispatch(logout());
-                // אופציונלי: ניקוי טוקנים ישנים מה-Storage כדי שלא ננסה לשלוח אותם שוב
-                localStorage.removeItem('token'); 
-                
-                // 3. רק אם הוא לא בלוגין, מעבירים אותו לשם
-                const currentPath = window.location.pathname;
-                window.location.href = `/login?callbackUrl=${encodeURIComponent(currentPath)}`;
+                const refreshResponse = await refreshAPI();
+                if(refreshResponse.success){
+                    const newAccessToken = refreshResponse.data;
+                    store.dispatch(setToken(newAccessToken));
+
+                    originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+
+                    return api(originalRequest);
+                }else{                    
+                    store.dispatch(logout());
+                    const currentPath = window.location.pathname;
+                    window.location.href = `/login?callbackUrl=${encodeURIComponent(currentPath)}`;
+                }   
             } else {
                 // אם הוא כבר בלוגין, אנחנו לא עושים כלום (מונע רענון בלתי פוסק של העמוד)
                 console.warn("API returned 401/403 while already on the login page.");

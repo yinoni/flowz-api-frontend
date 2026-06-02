@@ -55,6 +55,7 @@ export default function LoginPage() {
     if (apiResponse.success) {      
       await initData(apiResponse.data);
     } else {
+
       setError(apiResponse.msg);
     }
     setIsLoading(false);
