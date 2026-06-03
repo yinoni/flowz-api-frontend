@@ -121,3 +121,21 @@ export const refresh = async (): Promise<AuthResponse | AuthErrorResponse> => {
         }
     }
 }
+
+export const logout = async (): Promise<AuthResponse | AuthErrorResponse> => {
+    try{
+        await api.post(`${API_ROUTE}/logout`);
+
+        return {
+            success: true,
+            msg: "Logged out successfully",
+            data: ""
+        }
+    }
+    catch(error: any){        
+        return {
+            success: false,
+            msg: error.response.data.message
+        }
+    }
+}

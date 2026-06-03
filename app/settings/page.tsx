@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useDispatch } from "react-redux";
+import { useRouter } from "next/navigation";
+import { logout } from "../store/userSlice";
+import { logout as logoutAPI } from "../api/authAPI";
 
 interface ApiKey {
   id: string;
@@ -39,8 +43,22 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 export default function SettingsPage() {
+  const dispatch = useDispatch();
+  const router = useRouter();
   const [workspaceName, setWorkspaceName] = useState("Engineering Team");
   const [timeoutMs, setTimeoutMs] = useState(30000);
+
+  async function handleLogout() {
+    const logoutResponse = await logoutAPI();
+
+    console.log('The logout response is: ', logoutResponse);
+    
+
+    if(logoutResponse.success){
+      dispatch(logout());
+      router.push("/login");
+    }
+  }
 
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([
     { id: "1", name: "Production Main", maskedValue: "fs_live_••••••••••••••••3a92", createdDate: "Oct 12, 2023" },
@@ -240,6 +258,28 @@ export default function SettingsPage() {
                 </button>
               </section>
             </div>
+            {/* Danger Zone */}
+            <section className="bg-surface-container-low border border-error/40 rounded-xl p-md">
+              <div className="flex items-center gap-sm mb-md text-error">
+                <span className="material-symbols-outlined">warning</span>
+                <h2 className="font-headline-md text-headline-md">Danger Zone</h2>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-body-md text-on-surface">Sign out of your account</p>
+                  <p className="font-body-sm text-on-surface-variant mt-1">
+                    You will be redirected to the login page.
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-xs bg-error-container text-on-error-container font-bold px-md py-sm rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  <span className="material-symbols-outlined text-sm">logout</span>
+                  Log Out
+                </button>
+              </div>
+            </section>
           </div>
         </main>
 
