@@ -1,5 +1,5 @@
 import api, { APIErrorResponse, APIResponse } from "./apiConfig";
-import type { StepFormData } from "../store/stepsSlice";
+import type { Step, StepFormData } from "../store/stepsSlice";
 
 
 const API_ROUTE = '/flow';
@@ -89,7 +89,7 @@ export const addStep = async (flowId: string, stepId: string, stepData: StepForm
 
 export const editStep = async (flowId: string, stepId: string, stepData: StepFormData): Promise<APIResponse | APIErrorResponse> => {
     try {
-        await api.put(`${API_ROUTE}/steps/${flowId}`, { ...stepData, id: stepId });
+        await api.patch(`${API_ROUTE}/steps/${flowId}`, { ...stepData, id: stepId });
 
         return {
             success: true,
@@ -166,5 +166,45 @@ export const getProjectFlows = async (projectId: string): Promise<APIResponse | 
 
         return errorResponse;
     }
-    
 }
+
+export const setGlobals = async (flowId: string, globals: Record<string, any>, fieldName: "GLOBAL_ASSERTIONS" | "GLOBAL_VARIABLES" | "GLOBAL_HEADERS"): Promise<APIResponse | APIErrorResponse> => {
+    try{
+        const apiResponse = await api.patch(`${API_ROUTE}/${flowId}/globals`, {
+            globals: globals,
+            fieldName: fieldName 
+        });
+        return {
+            success: true,
+            data: apiResponse.data,
+            msg: 'Assertions added successfully'
+        }
+    }
+    catch(error: any){
+        return {
+            success: false,
+            ...error.response.data,
+        }
+   
+    }
+} 
+
+export const reorderSteps = async (flowId: string, newSteps: string[]): Promise<APIResponse | APIErrorResponse> => {
+    try{
+        const apiResponse = await api.patch(`${API_ROUTE}/steps/${flowId}/reorder`, {
+            steps: newSteps
+        });
+        return {
+            success: true,
+            data: apiResponse.data,
+            msg: 'Assertions added successfully'
+        }
+    }
+    catch(error: any){
+        return {
+            success: false,
+            ...error.response.data,
+        }
+   
+    }
+} 

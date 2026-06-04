@@ -15,71 +15,6 @@ import {
 import FlowModal from "../components/FlowModal";
 import { createFlow as createFlowAPI, deleteFlow as deleteFlowAPI, editFlow as editFlowAPI, getProjectFlows } from "../api/flowRoute";
 
-const STATUS_CONFIG: Record<FlowStatus, { label: string; className: string }> = {
-  ACTIVE: {
-    label: "ACTIVE",
-    className: "bg-secondary-container text-on-secondary-container",
-  },
-  PAUSED: {
-    label: "PAUSED",
-    className: "bg-surface-container-highest text-on-surface-variant",
-  },
-  DRAFT: {
-    label: "DRAFT",
-    className: "bg-surface-container-highest text-on-surface-variant border border-outline-variant",
-  },
-};
-
-interface SparkBar {
-  height: number;
-  opacity?: number;
-}
-
-const SPARK_PRESETS: Record<FlowStatus, { bars: SparkBar[]; color: string }> = {
-  ACTIVE: {
-    bars: [
-      { height: 4, opacity: 30 },
-      { height: 6, opacity: 50 },
-      { height: 5 },
-      { height: 8 },
-      { height: 6 },
-      { height: 7 },
-    ],
-    color: "bg-secondary",
-  },
-  PAUSED: {
-    bars: [{ height: 4 }, { height: 4 }, { height: 4 }, { height: 4 }, { height: 4 }],
-    color: "bg-outline-variant",
-  },
-  DRAFT: {
-    bars: [
-      { height: 8 },
-      { height: 3, opacity: 40 },
-      { height: 7 },
-      { height: 2, opacity: 20 },
-      { height: 6 },
-    ],
-    color: "bg-error",
-  },
-};
-
-function Sparkline({ bars, color }: { bars: SparkBar[]; color: string }) {
-  return (
-    <div className="h-8 w-24 flex items-end gap-1">
-      {bars.map((bar, i) => (
-        <div
-          key={i}
-          className={`w-1 rounded-full ${color}`}
-          style={{
-            height: `${bar.height * 4}px`,
-            opacity: bar.opacity !== undefined ? bar.opacity / 100 : 1,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 interface FlowCardProps {
   flow: FlowRecord;
   onOpen: () => void;
@@ -221,29 +156,19 @@ export default function MyFlowsPage() {
           </button>
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex items-center justify-between mb-lg bg-surface-container-low p-sm rounded-xl border border-outline-variant">
-          <div className="flex items-center gap-sm">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">
-                search
-              </span>
-              <input
-                className="bg-surface-container border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-on-surface text-body-md focus:border-primary w-56 transition-all outline-none"
-                placeholder="Search flows..."
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <button className="flex items-center gap-xs px-md py-2 bg-surface-container-highest text-on-surface rounded-lg font-body-md border border-outline-variant hover:bg-surface-bright transition-colors">
-              <span className="material-symbols-outlined">filter_list</span>
-              Filter
-            </button>
-          </div>
-          <div className="flex items-center gap-xs text-on-surface-variant text-body-sm mr-sm">
-            <span className="w-2 h-2 rounded-full bg-secondary" />
-            <span>{flows.filter((f) => f.status === "ACTIVE").length} Flows Active</span>
+        {/* Search Bar */}
+        <div className="flex items-center mb-lg bg-surface-container-low p-sm rounded-xl border border-outline-variant">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">
+              search
+            </span>
+            <input
+              className="bg-surface-container border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-on-surface text-body-md focus:border-primary w-56 transition-all outline-none"
+              placeholder="Search flows..."
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
 
@@ -277,16 +202,8 @@ export default function MyFlowsPage() {
 
       {/* Footer */}
       <footer className="bg-surface-container-lowest font-code-sm text-code-sm h-12 flex justify-between items-center px-lg border-t border-outline-variant shrink-0">
-        <div className="flex items-center gap-lg">
-          <span className="font-code-md text-code-md text-tertiary">FlowState Engine</span>
-          <span className="text-outline">© 2024 FlowState Engine. All logs encrypted.</span>
-        </div>
-        <div className="flex items-center gap-md">
-          <div className="flex items-center gap-xs">
-            <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-            <span className="text-secondary opacity-90">v1.24.4-STABLE</span>
-          </div>
-        </div>
+        <span className="font-code-md text-code-md text-tertiary">FlowState Engine</span>
+        <span className="text-outline">© 2024 FlowState Engine. All logs encrypted.</span>
       </footer>
 
       {/* Create / Edit Modal */}

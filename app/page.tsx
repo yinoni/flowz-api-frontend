@@ -12,16 +12,18 @@ import {
   setFlowSteps,
   createFlow,
   setExecutionId,
+  reorderSteps,
   FlowWSResponse,
 } from "./store/flowsSlice";
 import type { Step, StepFormData } from "./store/stepsSlice";
 import NewRequestModal from "./components/NewRequestModal";
 import FlowCanvas from "./components/FlowCanvas";
-import GlobalVariableModal from "./components/GlobalVariableModal";
-import GlobalAssertionModal from "./components/GlobalAssertionModal";
+import GlobalKVModal from "./components/GlobalKVModal";
 import { addStep as addStepAPI, createFlow as createFlowAPI, deleteStep as deleteStepAPI, editStep as editStepAPI, getFlowSteps } from "./api/flowRoute";
 import { executeFlow, getExecutionID } from "./api/flowExecutionAPI";
 import { useWebSocket } from "./components/WebSocketProvider";
+import { reorderSteps as reorderStepsAPI } from "./api/flowRoute";
+import { useToast } from "./components/ToastProvider";
 
 type LogStatus =
   | "STEP_PASSED"
@@ -78,6 +80,7 @@ function LogLine({ log }: { log: LogEntry }) {
 export default function Home() {
   const router = useRouter();
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const { flows, activeFlowId, executionId } = useSelector((state: RootState) => state.flows);
   const activeProjectId = useSelector((state: RootState) => state.projects.activeProjectId);
   const activeFlow = flows.find((f) => f.id === activeFlowId) ?? null;
@@ -101,7 +104,7 @@ export default function Home() {
   function extractStepResult(payload: FlowWSResponse): { stepId: string; passed: boolean } | null {
     const stepId = Object.keys(payload).find((k) => !KNOWN_WS_KEYS.has(k));
     if (!stepId) return null;
-    return { stepId, passed: payload[stepId] as boolean };
+    return { stepId, passed: payload.success };
   }
 
   function addLog(status: LogStatus, message: string) {
@@ -115,6 +118,7 @@ export default function Home() {
   const [editingStep, setEditingStep] = useState<Step | null>(null);
   const [isVariableModalOpen, setIsVariableModalOpen] = useState(false);
   const [isAssertionModalOpen, setIsAssertionModalOpen] = useState(false);
+  const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
 
   function openAddModal() {
     setEditingStep(null);
@@ -133,6 +137,7 @@ export default function Home() {
       if (result.success) {
         dispatch(updateStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
       }
+        
     } else {
       const stepId = Date.now().toString();
       const result = await addStepAPI(activeFlowId, stepId, data);
@@ -142,6 +147,26 @@ export default function Home() {
     }
     setIsModalOpen(false);
     setEditingStep(null);
+  }
+
+  const reorderDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isReorderPending, setIsReorderPending] = useState(false);
+
+  async function handleReorderSteps(orderedIds: string[]) {
+    if (!activeFlowId) return;
+    dispatch(reorderSteps({ flowId: activeFlowId, orderedIds }));
+
+    setIsReorderPending(true);
+    if (reorderDebounceRef.current) clearTimeout(reorderDebounceRef.current);
+    reorderDebounceRef.current = setTimeout(async () => {
+      const apiResponse = await reorderStepsAPI(activeFlowId, orderedIds);
+      setIsReorderPending(false);
+      if (apiResponse.success) {
+        showToast("Step order saved successfully.", "success");
+      } else {
+        showToast("Failed to save step order. Please try again.", "error");
+      }
+    }, 1500);
   }
 
   async function handleDeleteStep(stepId: string) {
@@ -319,6 +344,7 @@ export default function Home() {
           steps={steps}
           onStepClick={openEditModal}
           onStepDelete={handleDeleteStep}
+          onReorderSteps={handleReorderSteps}
           stepResults={stepResults}
         />
 
@@ -334,7 +360,7 @@ export default function Home() {
             {(
               [
                 { icon: "http", label: "Request", color: "secondary" },
-                { icon: "timer", label: "Wait", color: null },
+                { icon: "tune", label: "Headers", color: null },
                 { icon: "abc", label: "Variable", color: "primary" },
                 { icon: "verified_user", label: "Assert", color: "tertiary" },
               ] as const
@@ -346,6 +372,8 @@ export default function Home() {
                   ? () => setIsVariableModalOpen(true)
                   : label === "Assert"
                   ? () => setIsAssertionModalOpen(true)
+                  : label === "Headers"
+                  ? () => setIsHeadersModalOpen(true)
                   : undefined;
               const isClickable = !!onClick;
               const accentColor =
@@ -420,13 +448,20 @@ export default function Home() {
         initialStep={editingStep}
         defaultUrl={activeFlow.globalURL || undefined}
       />
-      <GlobalVariableModal
+      <GlobalKVModal
+        mode="variables"
         isOpen={isVariableModalOpen}
         onClose={() => setIsVariableModalOpen(false)}
       />
-      <GlobalAssertionModal
+      <GlobalKVModal
+        mode="assertions"
         isOpen={isAssertionModalOpen}
         onClose={() => setIsAssertionModalOpen(false)}
+      />
+      <GlobalKVModal
+        mode="headers"
+        isOpen={isHeadersModalOpen}
+        onClose={() => setIsHeadersModalOpen(false)}
       />
 
       {/* Execution Terminal */}
@@ -441,30 +476,24 @@ export default function Home() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-md">
-            <nav className="flex gap-md font-code-sm text-code-sm">
-              <a className="text-tertiary font-bold" href="#">Terminal</a>
-              <a className="text-outline hover:text-tertiary transition-colors" href="#">Environment</a>
-              <a className="text-outline hover:text-tertiary transition-colors" href="#">Console</a>
-            </nav>
-            <button onClick={onStartClick} className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs hover:opacity-80 transition-all font-bold font-code-sm text-code-sm">
-              <span className="material-symbols-outlined text-sm">play_arrow</span>
-              Start
-            </button>
-          </div>
+          <button
+            onClick={onStartClick}
+            disabled={isReorderPending}
+            className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs transition-all font-bold font-code-sm text-code-sm disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 disabled:hover:opacity-50"
+          >
+            <span className={`material-symbols-outlined text-sm ${isReorderPending ? "animate-spin" : ""}`}>
+              {isReorderPending ? "progress_activity" : "play_arrow"}
+            </span>
+            {isReorderPending ? "Saving..." : "Start"}
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto p-md custom-scrollbar font-code-sm text-code-sm space-y-1">
           {logs.map((log) => (
             <LogLine key={log.id} log={log} />
           ))}
         </div>
-        <div className="h-6 px-lg flex items-center justify-between border-t border-outline-variant bg-surface-container-lowest shrink-0">
+        <div className="h-6 px-lg flex items-center border-t border-outline-variant bg-surface-container-lowest shrink-0">
           <div className="text-[10px] text-outline">© 2024 FlowState Engine. All logs encrypted.</div>
-          <div className="text-[10px] text-outline flex gap-md">
-            <span>CPU: 12%</span>
-            <span>MEM: 512MB</span>
-            <span>WS: Connected</span>
-          </div>
         </div>
       </footer>
     </>

@@ -12,19 +12,6 @@ interface Execution {
   duration: string;
 }
 
-const EXECUTIONS: Execution[] = [
-  { id: "fl_82193", flowName: "Business Onboarding", status: "SUCCESS", timestamp: "2 mins ago", duration: "1.2s" },
-  { id: "fl_72001", flowName: "Auth Test", status: "FAILURE", timestamp: "Oct 24, 10:04 AM", duration: "0.8s" },
-  { id: "fl_29384", flowName: "Inventory Sync", status: "SUCCESS", timestamp: "Oct 24, 09:45 AM", duration: "2.1s" },
-  { id: "fl_11022", flowName: "Email Dispatcher", status: "SUCCESS", timestamp: "Oct 24, 08:30 AM", duration: "0.4s" },
-];
-
-const METRICS = [
-  { label: "TOTAL RUNS", value: "1,284", valueColor: "text-on-surface", icon: "speed", iconColor: "text-primary", iconBg: "bg-primary-container/20" },
-  { label: "SUCCESS RATE", value: "98.2%", valueColor: "text-secondary", icon: "check_circle", iconColor: "text-secondary", iconBg: "bg-secondary/10" },
-  { label: "AVG LATENCY", value: "1.42s", valueColor: "text-on-surface", icon: "timer", iconColor: "text-tertiary", iconBg: "bg-tertiary/20" },
-];
-
 function StatusIcon({ status }: { status: ExecStatus }) {
   return status === "SUCCESS" ? (
     <span className="material-symbols-outlined text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -53,16 +40,15 @@ function ExecRow({ exec }: { exec: Execution }) {
           {exec.duration}
         </span>
       </td>
-      <td className="px-md py-4 text-right">
-        <button className="text-primary hover:underline text-body-sm font-semibold">View Details</button>
-      </td>
     </tr>
   );
 }
 
+const executions: Execution[] = [];
+
 export default function HistoryPage() {
   const [filter, setFilter] = useState("");
-  const filtered = EXECUTIONS.filter((e) =>
+  const filtered = executions.filter((e) =>
     e.flowName.toLowerCase().includes(filter.toLowerCase())
   );
 
@@ -81,38 +67,18 @@ export default function HistoryPage() {
                 Track and monitor your automated flow performances.
               </p>
             </div>
-            <div className="flex items-center gap-sm">
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">
-                  search
-                </span>
-                <input
-                  className="bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-body-md focus:border-primary outline-none w-64 transition-all"
-                  placeholder="Filter by flow name..."
-                  type="text"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                />
-              </div>
-              <button className="p-2 border border-outline-variant rounded-lg bg-surface-container hover:bg-surface-variant text-on-surface-variant transition-all">
-                <span className="material-symbols-outlined">filter_list</span>
-              </button>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">
+                search
+              </span>
+              <input
+                className="bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-body-md focus:border-primary outline-none w-64 transition-all"
+                placeholder="Filter by flow name..."
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
             </div>
-          </div>
-
-          {/* Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-lg mb-xl">
-            {METRICS.map((m) => (
-              <div key={m.label} className="bg-surface-container border border-outline-variant rounded-xl p-md flex items-center gap-md">
-                <div className={`w-12 h-12 rounded-lg ${m.iconBg} flex items-center justify-center ${m.iconColor} shrink-0`}>
-                  <span className="material-symbols-outlined">{m.icon}</span>
-                </div>
-                <div>
-                  <p className="text-label-caps font-label-caps text-outline">{m.label}</p>
-                  <h2 className={`font-headline-lg text-headline-lg ${m.valueColor}`}>{m.value}</h2>
-                </div>
-              </div>
-            ))}
           </div>
 
           {/* Table */}
@@ -124,7 +90,6 @@ export default function HistoryPage() {
                   <th className="px-md py-4 font-label-caps text-label-caps text-outline">FLOW NAME</th>
                   <th className="px-md py-4 font-label-caps text-label-caps text-outline">DATE / TIME</th>
                   <th className="px-md py-4 font-label-caps text-label-caps text-outline">DURATION</th>
-                  <th className="px-md py-4 font-label-caps text-label-caps text-outline text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody>
@@ -132,25 +97,17 @@ export default function HistoryPage() {
                   filtered.map((exec) => <ExecRow key={exec.id} exec={exec} />)
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-md py-xl text-center text-on-surface-variant font-body-md">
-                      No executions match &quot;{filter}&quot;
+                    <td colSpan={4} className="px-md py-xl text-center text-on-surface-variant font-body-md">
+                      {filter ? `No executions match "${filter}"` : "No execution history yet."}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-            <div className="px-md py-md bg-surface-container-low border-t border-outline-variant flex items-center justify-between">
+            <div className="px-md py-md bg-surface-container-low border-t border-outline-variant">
               <span className="text-body-sm text-on-surface-variant">
-                Showing {filtered.length} of 1,284 executions
+                Showing {filtered.length} execution{filtered.length !== 1 ? "s" : ""}
               </span>
-              <div className="flex items-center gap-sm">
-                <button disabled className="p-1 border border-outline-variant rounded hover:bg-surface-variant disabled:opacity-40 disabled:cursor-not-allowed">
-                  <span className="material-symbols-outlined">chevron_left</span>
-                </button>
-                <button className="p-1 border border-outline-variant rounded hover:bg-surface-variant">
-                  <span className="material-symbols-outlined">chevron_right</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -158,15 +115,8 @@ export default function HistoryPage() {
 
       {/* Footer */}
       <footer className="bg-surface-container-lowest border-t border-outline-variant flex justify-between items-center px-lg h-12 shrink-0">
-        <div className="flex items-center gap-lg">
-          <span className="font-code-md text-code-md text-tertiary">FlowState Engine</span>
-          <span className="font-code-sm text-code-sm text-outline">© 2024 FlowState Engine. All logs encrypted.</span>
-        </div>
-        <nav className="flex items-center gap-md">
-          <a className="font-code-sm text-code-sm text-outline hover:text-tertiary transition-colors" href="#">Terminal</a>
-          <a className="font-code-sm text-code-sm text-outline hover:text-tertiary transition-colors" href="#">Environment</a>
-          <a className="font-code-sm text-code-sm text-tertiary font-bold" href="#">Console</a>
-        </nav>
+        <span className="font-code-md text-code-md text-tertiary">FlowState Engine</span>
+        <span className="font-code-sm text-code-sm text-outline">© 2024 FlowState Engine. All logs encrypted.</span>
       </footer>
     </>
   );

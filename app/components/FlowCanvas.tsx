@@ -1,43 +1,78 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useReducer } from "react";
 import type { Step } from "../store/stepsSlice";
+import { getHttpMethodColor } from "../utils/utils";
+
+interface DragState {
+  stepId: string;
+  startClientX: number;
+  currentClientX: number;
+  order: string[];
+  initialOrder: string[];
+}
 
 interface StepNodeProps {
   step: Step;
+  visualX: number;
+  visualY: number;
+  isDragging: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onDragHandlePointerDown: (e: React.PointerEvent) => void;
   stepResult?: boolean;
 }
 
-function StepNode({ step, onClick, onDelete, stepResult }: StepNodeProps) {
+function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDragHandlePointerDown, stepResult }: StepNodeProps) {
   const hasHeaders = Object.keys(step.headers).length > 0;
   const hasExtract = Object.keys(step.extract).length > 0;
   const hasAssertions = Object.keys(step.assertions).length > 0;
 
   return (
     <div
-      className={`step-node absolute w-[320px] bg-surface-container-high border-2 rounded-lg overflow-hidden shadow-xl z-10 cursor-pointer transition-colors ${
-        stepResult === true
-          ? "border-secondary shadow-secondary/20"
+      className={`step-node absolute w-[320px] bg-surface-container-high border-2 rounded-lg overflow-hidden shadow-xl cursor-pointer ${
+        isDragging
+          ? "border-primary shadow-primary/30 shadow-2xl z-50"
+          : stepResult === true
+          ? "border-secondary shadow-secondary/20 z-10"
           : stepResult === false
-          ? "border-error shadow-error/20"
-          : "border-outline-variant hover:border-primary-container"
+          ? "border-error shadow-error/20 z-10"
+          : "border-outline-variant hover:border-primary-container z-10"
       }`}
-      style={{ left: step.position.x, top: step.position.y }}
-      onClick={onClick}
+      style={{
+        left: visualX,
+        top: visualY,
+        transform: isDragging ? "scale(1.03) rotate(-0.5deg)" : undefined,
+        transition: isDragging
+          ? "box-shadow 0.1s"
+          : "left 0.15s ease, top 0.15s ease, box-shadow 0.1s",
+      }}
+      onClick={isDragging ? undefined : onClick}
     >
       <div className="bg-surface-variant px-md py-sm flex justify-between items-center border-b border-outline-variant">
         <div className="flex items-center gap-xs">
+          <div
+            className="cursor-grab active:cursor-grabbing text-outline hover:text-on-surface-variant transition-colors mr-xs shrink-0"
+            onPointerDown={onDragHandlePointerDown}
+            onClick={(e) => e.stopPropagation()}
+            title="Drag to reorder"
+          >
+            <span className="material-symbols-outlined text-sm select-none">drag_indicator</span>
+          </div>
           <span className="material-symbols-outlined text-secondary text-sm">http</span>
           <span className="font-label-caps text-label-caps text-on-surface">
             {step.title || "STEP"}
           </span>
         </div>
         <div className="flex items-center gap-xs">
-          <span className="bg-secondary-container text-on-secondary-container px-xs rounded text-[9px] font-bold">
-            {step.httpMethod || "GET"}
-          </span>
+          {(() => {
+            const { text, bg } = getHttpMethodColor(step.httpMethod);
+            return (
+              <span className={`${bg} ${text} px-xs rounded text-[9px] font-bold tracking-widest`}>
+                {step.httpMethod || "GET"}
+              </span>
+            );
+          })()}
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="text-outline hover:text-error transition-colors"
@@ -106,45 +141,117 @@ interface FlowCanvasProps {
   steps: Step[];
   onStepClick: (step: Step) => void;
   onStepDelete: (stepId: string) => void;
+  onReorderSteps: (orderedIds: string[]) => void;
   stepResults?: Record<string, boolean>;
 }
 
-export default function FlowCanvas({ steps, onStepClick, onStepDelete, stepResults }: FlowCanvasProps) {
-  const canvasRef = useRef<HTMLElement>(null);
-  const isDragging = useRef(false);
-  const dragStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+const STEP_SPACING = 440;
+const STEP_SWAP_THRESHOLD = STEP_SPACING / 2;
 
-  const canvasWidth = Math.max(1800, ...steps.map((s) => s.position.x + 440));
-  const canvasHeight = Math.max(700, ...steps.map((s) => s.position.y + 320));
+export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorderSteps, stepResults }: FlowCanvasProps) {
+  const canvasRef = useRef<HTMLElement>(null);
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+
+  // Ref holds live drag state; forceUpdate triggers re-renders during drag
+  const dragRef = useRef<DragState | null>(null);
+  const onReorderRef = useRef(onReorderSteps);
+  onReorderRef.current = onReorderSteps;
+  const [, forceUpdate] = useReducer(x => x + 1, 0);
+
+  function startStepDrag(stepId: string, clientX: number) {
+    const initialOrder = steps.map(s => s.id);
+    dragRef.current = {
+      stepId,
+      startClientX: clientX,
+      currentClientX: clientX,
+      order: initialOrder,
+      initialOrder,
+    };
+    forceUpdate();
+
+    function onPointerMove(e: PointerEvent) {
+      const drag = dragRef.current;
+      if (!drag) return;
+
+      const dx = e.clientX - drag.startClientX;
+      const currentIndex = drag.order.indexOf(drag.stepId);
+      let order = drag.order;
+      let startClientX = drag.startClientX;
+
+      if (dx > STEP_SWAP_THRESHOLD && currentIndex < order.length - 1) {
+        order = [...order];
+        [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
+        startClientX += STEP_SPACING;
+      } else if (dx < -STEP_SWAP_THRESHOLD && currentIndex > 0) {
+        order = [...order];
+        [order[currentIndex - 1], order[currentIndex]] = [order[currentIndex], order[currentIndex - 1]];
+        startClientX -= STEP_SPACING;
+      }
+
+      dragRef.current = { ...drag, currentClientX: e.clientX, order, startClientX };
+      forceUpdate();
+    }
+
+    function onPointerUp() {
+      const drag = dragRef.current;
+      if (drag && drag.order.join() !== drag.initialOrder.join()) {
+        // TODO: call reorder API when endpoint is available
+        onReorderRef.current(drag.order);
+      }
+      dragRef.current = null;
+      forceUpdate();
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  const drag = dragRef.current;
+
+  function getVisualPos(step: Step): { x: number; y: number } {
+    if (!drag) return { x: step.position.x, y: step.position.y };
+    const index = drag.order.indexOf(step.id);
+    const baseX = 80 + index * STEP_SPACING;
+    const baseY = index % 2 === 0 ? 80 : 300;
+    const dx = drag.stepId === step.id ? drag.currentClientX - drag.startClientX : 0;
+    return { x: baseX + dx, y: baseY };
+  }
+
+  // SVG connections follow current drag order at base (non-offset) positions
+  const connectionOrder = drag
+    ? drag.order.map(id => steps.find(s => s.id === id)).filter(Boolean) as Step[]
+    : steps;
+
+  const canvasWidth = Math.max(1800, steps.length * STEP_SPACING + 80);
+  const canvasHeight = Math.max(700, ...steps.map(s => s.position.y + 320));
 
   function handleMouseDown(e: React.MouseEvent<HTMLElement>) {
+    if (dragRef.current) return;
     const el = canvasRef.current;
     if (!el) return;
-    isDragging.current = true;
-    dragStart.current = {
-      x: e.clientX,
-      y: e.clientY,
-      scrollLeft: el.scrollLeft,
-      scrollTop: el.scrollTop,
-    };
+    isPanning.current = true;
+    panStart.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop };
     el.style.cursor = "grabbing";
     el.style.userSelect = "none";
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLElement>) {
-    if (!isDragging.current) return;
+    if (!isPanning.current || dragRef.current) return;
     e.preventDefault();
     const el = canvasRef.current;
     if (!el) return;
-    const dx = e.clientX - dragStart.current.x;
-    const dy = e.clientY - dragStart.current.y;
-    el.scrollLeft = dragStart.current.scrollLeft - dx;
-    el.scrollTop = dragStart.current.scrollTop - dy;
+    const dx = e.clientX - panStart.current.x;
+    const dy = e.clientY - panStart.current.y;
+    el.scrollLeft = panStart.current.scrollLeft - dx;
+    el.scrollTop = panStart.current.scrollTop - dy;
   }
 
-  function stopDrag() {
-    if (!isDragging.current) return;
-    isDragging.current = false;
+  function stopPan() {
+    if (!isPanning.current) return;
+    isPanning.current = false;
     const el = canvasRef.current;
     if (el) {
       el.style.cursor = "grab";
@@ -158,31 +265,24 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, stepResul
       className="flex-1 relative overflow-auto canvas-grid canvas-area bg-background cursor-grab"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
-      onMouseUp={stopDrag}
-      onMouseLeave={stopDrag}
+      onMouseUp={stopPan}
+      onMouseLeave={stopPan}
     >
       <svg
         className="absolute inset-0 pointer-events-none z-0"
         style={{ width: canvasWidth, height: canvasHeight }}
       >
         <defs>
-          <marker
-            id="arrowhead"
-            markerHeight="7"
-            markerWidth="10"
-            orient="auto"
-            refX="0"
-            refY="3.5"
-          >
+          <marker id="arrowhead" markerHeight="7" markerWidth="10" orient="auto" refX="0" refY="3.5">
             <polygon fill="#4d8eff" points="0 0, 10 3.5, 0 7" />
           </marker>
         </defs>
-        {steps.slice(0, -1).map((step, i) => {
-          const next = steps[i + 1];
-          const x1 = step.position.x + 320;
-          const y1 = step.position.y + 80;
-          const x2 = next.position.x;
-          const y2 = next.position.y + 80;
+        {connectionOrder.slice(0, -1).map((step, i) => {
+          const next = connectionOrder[i + 1];
+          const x1 = 80 + i * STEP_SPACING + 320;
+          const y1 = (i % 2 === 0 ? 80 : 300) + 80;
+          const x2 = 80 + (i + 1) * STEP_SPACING;
+          const y2 = ((i + 1) % 2 === 0 ? 80 : 300) + 80;
           return (
             <path
               key={`conn-${step.id}-${next.id}`}
@@ -197,19 +297,26 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, stepResul
         })}
       </svg>
 
-      <div
-        className="absolute inset-0"
-        style={{ minWidth: canvasWidth, minHeight: canvasHeight }}
-      >
-        {steps.map((step) => (
-          <StepNode
-            key={step.id}
-            step={step}
-            onClick={() => onStepClick(step)}
-            onDelete={() => onStepDelete(step.id)}
-            stepResult={stepResults?.[step.id]}
-          />
-        ))}
+      <div className="absolute inset-0" style={{ minWidth: canvasWidth, minHeight: canvasHeight }}>
+        {steps.map((step) => {
+          const { x, y } = getVisualPos(step);
+          return (
+            <StepNode
+              key={step.id}
+              step={step}
+              visualX={x}
+              visualY={y}
+              isDragging={drag?.stepId === step.id}
+              onClick={() => onStepClick(step)}
+              onDelete={() => onStepDelete(step.id)}
+              onDragHandlePointerDown={(e) => {
+                e.stopPropagation();
+                startStepDrag(step.id, e.clientX);
+              }}
+              stepResult={stepResults?.[step.id]}
+            />
+          );
+        })}
       </div>
     </section>
   );

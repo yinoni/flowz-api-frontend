@@ -18,10 +18,7 @@ interface FlowConfigState {
 }
 
 const initialState: FlowConfigState = {
-  variables: [
-    { id: '1', name: 'base_url', value: 'https://api.flowstate.io/v1' },
-    { id: '2', name: 'token', value: '' },
-  ],
+  variables: [],
   assertions: [],
 };
 

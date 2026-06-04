@@ -14,6 +14,17 @@ export interface FlowWSResponse {
   [key: string]: unknown  // dynamic stepId → boolean field
 }
 
+export interface FlowDTO{
+  id: string;
+  flowName: string;
+  projectId: string;
+  globalURL: string;
+  globalHeaders: Record<string, string>;
+  globalVariables: Record<string, string>;
+  globalAssertions: Record<string, any>;
+  steps: Step[];
+}
+
 export interface FlowRecord {
   // Backend fields
   id: string;
@@ -22,6 +33,7 @@ export interface FlowRecord {
   globalURL: string;
   globalHeaders: Record<string, string>;
   globalVariables: Record<string, string>;
+  globalAssertions: Record<string, any>;
   steps: Step[];
   // Frontend-only display fields
   status: FlowStatus;
@@ -35,12 +47,14 @@ interface FlowsState {
   flows: FlowRecord[];
   activeFlowId: string | null;
   executionId: string | null;
+  activeFlow: FlowRecord | null;
 }
 
 const initialState: FlowsState = {
   flows: [],
   activeFlowId: null,
-  executionId: null
+  executionId: null,
+  activeFlow: null
 };
 
 function todayLabel(): string {
@@ -54,10 +68,14 @@ const flowsSlice = createSlice({
     setFlows(state, action: PayloadAction<FlowRecord[]>){
       const payloadFlows = action.payload;
       state.flows = payloadFlows;
-      if(payloadFlows.length > 0)
+      if(payloadFlows.length > 0){
         state.activeFlowId = payloadFlows[0].id;
-      else
+        state.activeFlow = payloadFlows[0];
+      }
+      else{
         state.activeFlowId = null;
+        state.activeFlow = null;
+      }
     },
     createFlow(
       state,
@@ -84,15 +102,17 @@ const flowsSlice = createSlice({
     },
     updateFlowMeta(
       state,
-      action: PayloadAction<{ id: string; flowName: string; globalURL?: string; globalHeaders?: Record<string, string>; globalVariables?: Record<string, string> }>
+      action: PayloadAction<{ id: string; flowName?: string; globalURL?: string; globalHeaders?: Record<string, string>; globalVariables?: Record<string, string>, globalAssertions?: Record<string, any> }>
     ) {
       const flow = state.flows.find((f) => f.id === action.payload.id);
       if (flow) {
-        flow.flowName = action.payload.flowName;
+        if (action.payload.flowName !== undefined) flow.flowName = action.payload.flowName;
         if (action.payload.globalURL !== undefined) flow.globalURL = action.payload.globalURL;
         if (action.payload.globalHeaders !== undefined) flow.globalHeaders = action.payload.globalHeaders;
         if (action.payload.globalVariables !== undefined) flow.globalVariables = action.payload.globalVariables;
+        if (action.payload.globalAssertions !== undefined) flow.globalAssertions = action.payload.globalAssertions;
         flow.lastModified = todayLabel();
+        state.activeFlow = flow;
       }
     },
     setActiveFlow(state, action: PayloadAction<string | null>) {
@@ -138,7 +158,18 @@ const flowsSlice = createSlice({
     },
     setExecutionId(state, action: PayloadAction<string | null>){
       state.executionId = action.payload;
-    }
+    },
+    reorderSteps(state, action: PayloadAction<{ flowId: string; orderedIds: string[] }>) {
+      const flow = state.flows.find(f => f.id === action.payload.flowId);
+      if (!flow) return;
+      const stepMap = new Map(flow.steps.map(s => [s.id, s]));
+      flow.steps = action.payload.orderedIds
+        .filter(id => stepMap.has(id))
+        .map((id, index) => ({
+          ...stepMap.get(id)!,
+          position: { x: 80 + index * 440, y: index % 2 === 0 ? 80 : 300 },
+        }));
+    },
   },
 });
 
@@ -152,6 +183,7 @@ export const {
   addStepToFlow,
   updateStepInFlow,
   removeStepFromFlow,
-  setExecutionId
+  setExecutionId,
+  reorderSteps,
 } = flowsSlice.actions;
 export default flowsSlice.reducer;

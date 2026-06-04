@@ -17,11 +17,11 @@ interface Props {
 }
 
 const HTTP_METHODS: SelectOption[] = [
-  { label: "GET", value: "GET" },
-  { label: "POST", value: "POST" },
-  { label: "PUT", value: "PUT" },
-  { label: "PATCH", value: "PATCH" },
-  { label: "DELETE", value: "DELETE" },
+  { label: "GET",    value: "GET",    color: "text-green-400"  },
+  { label: "POST",   value: "POST",   color: "text-yellow-400" },
+  { label: "PUT",    value: "PUT",    color: "text-purple-400" },
+  { label: "PATCH",  value: "PATCH",  color: "text-pink-400"   },
+  { label: "DELETE", value: "DELETE", color: "text-red-400"    },
 ];
 
 const CONTENT_TYPES: SelectOption[] = [
