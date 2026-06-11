@@ -7,6 +7,7 @@ import type { RootState } from "../store/store";
 import { TopNav } from "./TopNav";
 import { Sidebar } from "./Sidebar";
 import { ToastProvider } from "./ToastProvider";
+import { exitFocusMode } from "../store/uiSlice";
 import { loginSuccess } from "../store/userSlice";
 import { safeJwtDecode } from "../utils/utils";
 import { getUserProjects } from "../api/projectRoute";
@@ -23,6 +24,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   const router = useRouter();
   const isAuthenticated = useSelector((state: RootState) => state.user.isAuthenticated);
   const verified = useSelector((state: RootState) => state.user.verified);
+  const isFocusMode = useSelector((state: RootState) => state.ui.isFocusMode);
   const isAuthPage = AUTH_ROUTES.includes(pathname);
   const dispatch = useDispatch();
   const [isLoading, setIsLoading] = useState(true);
@@ -105,8 +107,15 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
     <ToastProvider>
       <TopNav />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Left sidebar — collapses in focus mode */}
+        <div
+          className={`overflow-hidden shrink-0 transition-[width,opacity] duration-200 ease-in-out ${
+            isFocusMode ? "w-0 opacity-0" : "w-sidebar-width opacity-100"
+          }`}
+        >
+          <Sidebar />
+        </div>
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {children}
         </div>
       </div>

@@ -3,6 +3,8 @@ import { store } from '@/app/store/store';
 import { log } from 'console';
 import { logout, setToken } from '../store/userSlice';
 import { refresh as refreshAPI } from './authAPI';
+import { API_URL } from '../utils/consts';
+
 
 
 export interface APIResponse{
@@ -20,7 +22,7 @@ export interface APIErrorResponse{
 
 
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL,
+    baseURL: API_URL,
     headers: {
         'Content-Type': 'application/json',
     },

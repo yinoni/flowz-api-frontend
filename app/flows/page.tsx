@@ -35,7 +35,7 @@ function FlowCard({ flow, onOpen, onEdit, onDelete }: FlowCardProps) {
       </div>
       <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">{flow.flowName}</h3>
       <p className="text-on-surface-variant text-body-sm mb-md font-code-sm">
-        Last modified: {flow.lastModified}
+        Last modified: {new Date(flow.lastModified).toLocaleDateString('he-IL')}
       </p>
       {flow.globalURL && (
         <p className="text-outline font-code-sm text-[10px] mb-md truncate">

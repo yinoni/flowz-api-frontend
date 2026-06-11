@@ -16,7 +16,7 @@ Use this skill when the user wants to extract stateful logic or side effects (li
 
 ## Create new type
 Use this skill when the user wants to create a new type or when you creating a new component
-
+ 
 **Instructions:**
 1. go to this path: C:\Users\User\Niv Course\Spring projects\flowz-api-builder\flowz-api-builder\src\main\java\com\flowzapi\flowz_api_builder\model
 2. if you need to create new type search for it in this path before executing

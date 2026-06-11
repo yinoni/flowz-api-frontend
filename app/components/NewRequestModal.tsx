@@ -14,6 +14,7 @@ interface Props {
   onSave: (data: StepFormData) => void;
   initialStep?: Step | null;
   defaultUrl?: string;
+  isFallback?: boolean;
 }
 
 const HTTP_METHODS: SelectOption[] = [
@@ -34,7 +35,7 @@ const CONTENT_TYPES: SelectOption[] = [
   { label: "JavaScript", value: "application/javascript" },
 ];
 
-export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, defaultUrl }: Props) {
+export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, defaultUrl, isFallback }: Props) {
   const isEditing = !!initialStep;
 
   const [activeTab, setActiveTab] = useState<Tab>("body");
@@ -77,13 +78,14 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
 
   function handleSave() {
     onSave({
-      title: title.trim() || "STEP",
+      title: title.trim() || (isFallback ? "FALLBACK" : "STEP"),
       httpMethod: method,
       url,
       body,
       headers: body.trim() ? { ...kvToRecord(headers), "Content-Type": contentType } : kvToRecord(headers),
       extract: kvToRecord(extract),
       assertions: kvToRecord(assertions),
+      routes: {},
     });
   }
 
@@ -106,15 +108,28 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
         {/* Header */}
         <div className="px-xl py-lg bg-surface-container-highest border-b border-outline-variant flex justify-between items-center shrink-0">
           <div className="flex items-center gap-md">
-            <div className="w-10 h-10 rounded-lg bg-secondary-container/20 flex items-center justify-center">
-              <span className="material-symbols-outlined text-secondary">http</span>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isFallback ? 'bg-error/20' : 'bg-secondary-container/20'}`}>
+              <span className={`material-symbols-outlined ${isFallback ? 'text-error' : 'text-secondary'}`}>
+                {isFallback ? 'alt_route' : 'http'}
+              </span>
             </div>
             <div>
-              <h2 className="font-headline-lg text-headline-lg text-on-surface">
-                {isEditing ? "Edit Request Step" : "Configure Request Step"}
-              </h2>
+              <div className="flex items-center gap-sm">
+                <h2 className="font-headline-lg text-headline-lg text-on-surface">
+                  {isEditing
+                    ? isFallback ? "Edit Fallback Step" : "Edit Request Step"
+                    : isFallback ? "Configure Fallback Step" : "Configure Request Step"}
+                </h2>
+                {isFallback && (
+                  <span className="px-xs py-0.5 rounded text-[9px] font-bold tracking-widest uppercase bg-error/20 text-error border border-error/30">
+                    FALLBACK
+                  </span>
+                )}
+              </div>
               <p className="font-body-sm text-body-sm text-outline">
-                Define your HTTP outbound call parameters
+                {isFallback
+                  ? "Triggered when a parent step returns a matched status code"
+                  : "Define your HTTP outbound call parameters"}
               </p>
             </div>
           </div>
@@ -240,12 +255,16 @@ export default function NewRequestModal({ isOpen, onClose, onSave, initialStep, 
           </button>
           <button
             onClick={handleSave}
-            className="px-xl py-md rounded-lg bg-primary text-on-primary font-extrabold shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-sm"
+            className={`px-xl py-md rounded-lg font-extrabold shadow-lg transition-all active:scale-95 flex items-center gap-sm ${
+              isFallback
+                ? 'bg-error text-on-error shadow-error/20'
+                : 'bg-primary text-on-primary shadow-primary/20'
+            }`}
           >
             <span className="material-symbols-outlined text-[20px]">
               {isEditing ? "save" : "add"}
             </span>
-            {isEditing ? "Save Changes" : "Add to Flow"}
+            {isEditing ? "Save Changes" : isFallback ? "Add Fallback" : "Add to Flow"}
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Client } from "@stomp/stompjs";
+import { WS_URL } from "../utils/consts";
 
 // הגדרת הטיפוס של הקונטקסט
 interface WebSocketContextType {
@@ -20,14 +21,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const client = new Client({
-      brokerURL: "ws://localhost:8080/ws-flow", // האנדפוינט הנקי שלך בשרת
+      brokerURL: WS_URL, // האנדפוינט הנקי שלך בשרת
       onConnect: () => {
         setIsConnected(true);
-        console.log("Global WebSocket Connected! 🚀");
+        console.log("Global WebSocket Connected!");
       },
       onDisconnect: () => {
         setIsConnected(false);
-        console.log("Global WebSocket Disconnected! ❌");
+        console.log("Global WebSocket Disconnected!");
       },
     });
 

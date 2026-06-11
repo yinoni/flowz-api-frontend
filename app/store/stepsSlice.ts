@@ -9,6 +9,7 @@ export interface Step {
   headers: Record<string, string>;
   extract: Record<string, string>;
   assertions: Record<string, string>;
+  routes: Record<string, string>;  // status code → fallback step ID
   position: { x: number; y: number };
 }
 
@@ -29,6 +30,7 @@ const initialState: StepsState = {
       headers: {},
       extract: { token: 'response.data.token' },
       assertions: {},
+      routes: {},
       position: { x: 80, y: 80 },
     },
     {
@@ -40,6 +42,7 @@ const initialState: StepsState = {
       headers: { Authorization: 'Bearer {{token}}' },
       extract: { businessId: 'response.id' },
       assertions: {},
+      routes: {},
       position: { x: 520, y: 300 },
     },
     {
@@ -51,6 +54,7 @@ const initialState: StepsState = {
       headers: {},
       extract: {},
       assertions: { status: '200' },
+      routes: {},
       position: { x: 1020, y: 150 },
     },
   ],
@@ -60,7 +64,7 @@ const stepsSlice = createSlice({
   name: 'steps',
   initialState,
   reducers: {
-    addStep(state, action: PayloadAction<StepFormData>) {
+    addStep(state, action: PayloadAction<Step>) {
       const last = state.steps[state.steps.length - 1];
       const newX = last ? last.position.x + 440 : 80;
       const newY = last ? (last.position.y <= 150 ? 300 : 80) : 80;

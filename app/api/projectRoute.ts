@@ -34,7 +34,7 @@ export const updateProject = async (projectId: string, projectName: string): Pro
 
 export const deleteProject = async (projectId: string): Promise<APIResponse | APIErrorResponse> => {
     try {
-        await api.delete(`${API_ROUTE}`, { params: { projectId } });
+        await api.delete(`${API_ROUTE}/${projectId}`);
         return { success: true, data: null, msg: 'Project deleted successfully' };
     } catch (error: any) {
         return { success: false, ...error.response.data };

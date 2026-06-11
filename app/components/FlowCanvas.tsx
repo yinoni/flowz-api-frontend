@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useReducer } from "react";
+import { useRef, useReducer, useState } from "react";
 import type { Step } from "../store/stepsSlice";
 import { getHttpMethodColor } from "../utils/utils";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DragState {
   stepId: string;
@@ -12,6 +14,33 @@ interface DragState {
   initialOrder: string[];
 }
 
+interface ConnectDrag {
+  fromStepId: string;
+  fromX: number;
+  fromY: number;
+  currentX: number;
+  currentY: number;
+  overFallbackId: string | null;
+}
+
+interface PendingConnection {
+  fromStepId: string;
+  toFallbackId: string;
+  popoverX: number;
+  popoverY: number;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STEP_SPACING = 440;
+const STEP_SWAP_THRESHOLD = STEP_SPACING / 2;
+const FALLBACK_ROW_Y = 800;
+const STEP_CARD_HEIGHT = 219; // card base + connect port strip (h-7 + border-t ≈ 29px)
+const FALLBACK_CARD_WIDTH = 300;
+const FALLBACK_CARD_GAP = 24;
+
+// ─── Regular Step Node ────────────────────────────────────────────────────────
+
 interface StepNodeProps {
   step: Step;
   visualX: number;
@@ -20,17 +49,33 @@ interface StepNodeProps {
   onClick: () => void;
   onDelete: () => void;
   onDragHandlePointerDown: (e: React.PointerEvent) => void;
+  onPortPointerDown: (e: PointerEvent, stepId: string) => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
   stepResult?: boolean;
 }
 
-function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDragHandlePointerDown, stepResult }: StepNodeProps) {
-  const hasHeaders = Object.keys(step.headers).length > 0;
-  const hasExtract = Object.keys(step.extract).length > 0;
-  const hasAssertions = Object.keys(step.assertions).length > 0;
+function StepNode({
+  step,
+  visualX,
+  visualY,
+  isDragging,
+  onClick,
+  onDelete,
+  onDragHandlePointerDown,
+  onPortPointerDown,
+  onMouseEnter,
+  onMouseLeave,
+  stepResult,
+}: StepNodeProps) {
+  const hasHeaders = Object.keys(step.headers ?? {}).length > 0;
+  const hasExtract = Object.keys(step.extract ?? {}).length > 0;
+  const hasAssertions = Object.keys(step.assertions ?? {}).length > 0;
+  const hasRoutes = step.routes && Object.keys(step.routes).length > 0;
 
   return (
     <div
-      className={`step-node absolute w-[320px] bg-surface-container-high border-2 rounded-lg overflow-hidden shadow-xl cursor-pointer ${
+      className={`step-node group absolute w-[320px] bg-surface-container-high border-2 rounded-lg overflow-hidden shadow-xl cursor-pointer ${
         isDragging
           ? "border-primary shadow-primary/30 shadow-2xl z-50"
           : stepResult === true
@@ -48,7 +93,10 @@ function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDra
           : "left 0.15s ease, top 0.15s ease, box-shadow 0.1s",
       }}
       onClick={isDragging ? undefined : onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
+      {/* Header */}
       <div className="bg-surface-variant px-md py-sm flex justify-between items-center border-b border-outline-variant">
         <div className="flex items-center gap-xs">
           <div
@@ -82,6 +130,8 @@ function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDra
           </button>
         </div>
       </div>
+
+      {/* Body */}
       <div className="p-md space-y-md">
         {step.url && (
           <div>
@@ -94,7 +144,7 @@ function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDra
         {hasHeaders && (
           <div className="bg-surface-container-low p-xs rounded border-l-2 border-primary-container">
             <div className="text-[9px] text-outline uppercase mb-1">Headers</div>
-            {Object.entries(step.headers)
+            {Object.entries(step.headers ?? {})
               .slice(0, 2)
               .map(([k, v]) => (
                 <div key={k} className="font-code-sm text-code-sm truncate">
@@ -114,7 +164,7 @@ function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDra
         {hasExtract && (
           <div className="bg-primary-container/10 border border-primary/30 p-xs rounded">
             <label className="text-[9px] text-primary uppercase block mb-xs">Extract</label>
-            {Object.entries(step.extract).map(([varName, path]) => (
+            {Object.entries(step.extract ?? {}).map(([varName, path]) => (
               <div key={varName} className="font-code-sm text-code-sm text-on-background">
                 {varName} <span className="text-primary font-bold">←</span> {path}
               </div>
@@ -124,7 +174,7 @@ function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDra
         {hasAssertions && (
           <div className="bg-tertiary-container/10 border border-tertiary-container/30 p-xs rounded">
             <label className="text-[9px] text-tertiary uppercase block mb-xs">Assertions</label>
-            {Object.entries(step.assertions).map(([k, v]) => (
+            {Object.entries(step.assertions ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between font-code-sm text-code-sm">
                 <span>{k} == {v}</span>
                 <span className="material-symbols-outlined text-tertiary text-xs">pending</span>
@@ -132,53 +182,221 @@ function StepNode({ step, visualX, visualY, isDragging, onClick, onDelete, onDra
             ))}
           </div>
         )}
+        {hasRoutes && (
+          <div className="bg-error/5 border border-error/30 p-xs rounded">
+            <label className="text-[9px] text-error uppercase block mb-xs flex items-center gap-xs">
+              <span className="material-symbols-outlined text-xs">alt_route</span>
+              Fallback Routes
+            </label>
+            {Object.entries(step.routes ?? {}).map(([code, fallbackId]) => (
+              <div key={code} className="flex items-center gap-xs font-code-sm text-code-sm">
+                <span className="bg-error/20 text-error px-xs rounded text-[9px] font-bold tracking-widest shrink-0">
+                  {code}
+                </span>
+                <span className="text-outline">→</span>
+                <span className="text-on-surface-variant truncate">{fallbackId}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Connection port — drag from here to attach a fallback step */}
+      <div
+        className="h-7 border-t border-error/20 flex justify-center items-center gap-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair select-none hover:bg-error/5"
+        onPointerDown={(e) => { e.stopPropagation(); onPortPointerDown(e.nativeEvent, step.id); }}
+        onClick={(e) => e.stopPropagation()}
+        title="Drag to connect to a fallback step"
+      >
+        <div className="h-px w-8 bg-error/20" />
+        <div className="w-2 h-2 rounded-full bg-error/30 border border-error/50" />
+        <span className="text-[8px] text-error/40 font-code-sm uppercase tracking-wider">connect fallback</span>
+        <div className="w-2 h-2 rounded-full bg-error/30 border border-error/50" />
+        <div className="h-px w-8 bg-error/20" />
       </div>
     </div>
   );
 }
 
-interface FlowCanvasProps {
-  steps: Step[];
-  onStepClick: (step: Step) => void;
-  onStepDelete: (stepId: string) => void;
-  onReorderSteps: (orderedIds: string[]) => void;
-  stepResults?: Record<string, boolean>;
+// ─── Fallback Step Node ───────────────────────────────────────────────────────
+
+interface FallbackStepNodeProps {
+  step: Step;
+  visualX: number;
+  visualY: number;
+  onClick: () => void;
+  onDelete: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  stepResult?: boolean;
+  isDropTarget: boolean;
 }
 
-const STEP_SPACING = 440;
-const STEP_SWAP_THRESHOLD = STEP_SPACING / 2;
+function FallbackStepNode({
+  step,
+  visualX,
+  visualY,
+  onClick,
+  onDelete,
+  onMouseEnter,
+  onMouseLeave,
+  stepResult,
+  isDropTarget,
+}: FallbackStepNodeProps) {
+  const hasExtract = Object.keys(step.extract ?? {}).length > 0;
+  const hasHeaders = Object.keys(step.headers ?? {}).length > 0;
 
-export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorderSteps, stepResults }: FlowCanvasProps) {
+  return (
+    <div
+      className={`step-node absolute w-[300px] bg-surface-container-high border-2 border-dashed rounded-lg overflow-hidden shadow-xl cursor-pointer z-10 transition-all ${
+        isDropTarget
+          ? "border-error shadow-error/50 shadow-2xl bg-error/10 scale-[1.03]"
+          : stepResult === true
+          ? "border-secondary shadow-secondary/20"
+          : stepResult === false
+          ? "border-error shadow-error/30"
+          : "border-error/60 hover:border-error"
+      }`}
+      style={{ left: visualX, top: visualY }}
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className="bg-error/15 px-md py-sm flex justify-between items-center border-b border-error/30">
+        <div className="flex items-center gap-xs">
+          <span className="material-symbols-outlined text-error text-sm">alt_route</span>
+          <span className="font-label-caps text-label-caps text-on-surface">
+            {step.title || "FALLBACK"}
+          </span>
+          <span className="px-xs py-0 rounded text-[8px] font-bold tracking-widest uppercase bg-error/20 text-error border border-error/30 leading-4">
+            FALLBACK
+          </span>
+        </div>
+        <div className="flex items-center gap-xs">
+          {(() => {
+            const { text, bg } = getHttpMethodColor(step.httpMethod);
+            return (
+              <span className={`${bg} ${text} px-xs rounded text-[9px] font-bold tracking-widest`}>
+                {step.httpMethod || "GET"}
+              </span>
+            );
+          })()}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="text-outline hover:text-error transition-colors"
+            title="Delete fallback step"
+          >
+            <span className="material-symbols-outlined text-sm">delete</span>
+          </button>
+        </div>
+      </div>
+      <div className="p-md space-y-md">
+        {step.url && (
+          <div>
+            <label className="text-[9px] text-outline uppercase block mb-xs">URL</label>
+            <div className="font-code-sm text-code-sm bg-background p-xs border border-outline-variant rounded text-on-surface truncate">
+              {step.url}
+            </div>
+          </div>
+        )}
+        {hasHeaders && (
+          <div className="bg-surface-container-low p-xs rounded border-l-2 border-error/40">
+            <div className="text-[9px] text-outline uppercase mb-1">Headers</div>
+            {Object.entries(step.headers ?? {})
+              .slice(0, 2)
+              .map(([k, v]) => (
+                <div key={k} className="font-code-sm text-code-sm truncate">
+                  {k}: <span className="text-primary">{v}</span>
+                </div>
+              ))}
+          </div>
+        )}
+        {step.body && (
+          <div>
+            <label className="text-[9px] text-outline uppercase block mb-xs">Request Body</label>
+            <pre className="font-code-sm text-code-sm bg-background p-xs border border-outline-variant rounded text-error/80 truncate">
+              {step.body.length > 60 ? step.body.slice(0, 60) + "…" : step.body}
+            </pre>
+          </div>
+        )}
+        {hasExtract && (
+          <div className="bg-error/5 border border-error/20 p-xs rounded">
+            <label className="text-[9px] text-error uppercase block mb-xs">Extract</label>
+            {Object.entries(step.extract ?? {}).map(([varName, path]) => (
+              <div key={varName} className="font-code-sm text-code-sm text-on-background">
+                {varName} <span className="text-error font-bold">←</span> {path}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="pt-xs border-t border-error/20">
+          <div className="font-code-sm text-[9px] text-error/60 flex items-center gap-xs">
+            <span className="material-symbols-outlined text-xs">info</span>
+            ID: <span className="text-outline">{step.id}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── FlowCanvas ───────────────────────────────────────────────────────────────
+
+interface FlowCanvasProps {
+  steps: Step[];
+  fallbackSteps: Step[];
+  onStepClick: (step: Step) => void;
+  onFallbackStepClick: (step: Step) => void;
+  onStepDelete: (stepId: string) => void;
+  onFallbackStepDelete: (stepId: string) => void;
+  onReorderSteps: (orderedIds: string[]) => void;
+  onConnect: (fromStepId: string, toFallbackId: string, statusCode: string) => void;
+  onDisconnect: (stepId: string, statusCode: string) => void;
+  stepResults?: Record<string, boolean>;
+  isLoading?: boolean;
+}
+
+export default function FlowCanvas({
+  steps,
+  fallbackSteps,
+  onStepClick,
+  onFallbackStepClick,
+  onStepDelete,
+  onFallbackStepDelete,
+  onReorderSteps,
+  onConnect,
+  onDisconnect,
+  stepResults,
+  isLoading,
+}: FlowCanvasProps) {
   const canvasRef = useRef<HTMLElement>(null);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
-  // Ref holds live drag state; forceUpdate triggers re-renders during drag
   const dragRef = useRef<DragState | null>(null);
+  const connectDragRef = useRef<ConnectDrag | null>(null);
   const onReorderRef = useRef(onReorderSteps);
   onReorderRef.current = onReorderSteps;
   const [, forceUpdate] = useReducer(x => x + 1, 0);
 
+  const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
+  const [statusInput, setStatusInput] = useState("");
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  // ── Step reorder drag ─────────────────────────────────────────────────────────
+
   function startStepDrag(stepId: string, clientX: number) {
     const initialOrder = steps.map(s => s.id);
-    dragRef.current = {
-      stepId,
-      startClientX: clientX,
-      currentClientX: clientX,
-      order: initialOrder,
-      initialOrder,
-    };
+    dragRef.current = { stepId, startClientX: clientX, currentClientX: clientX, order: initialOrder, initialOrder };
     forceUpdate();
 
     function onPointerMove(e: PointerEvent) {
       const drag = dragRef.current;
       if (!drag) return;
-
       const dx = e.clientX - drag.startClientX;
       const currentIndex = drag.order.indexOf(drag.stepId);
       let order = drag.order;
       let startClientX = drag.startClientX;
-
       if (dx > STEP_SWAP_THRESHOLD && currentIndex < order.length - 1) {
         order = [...order];
         [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
@@ -188,7 +406,6 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
         [order[currentIndex - 1], order[currentIndex]] = [order[currentIndex], order[currentIndex - 1]];
         startClientX -= STEP_SPACING;
       }
-
       dragRef.current = { ...drag, currentClientX: e.clientX, order, startClientX };
       forceUpdate();
     }
@@ -196,7 +413,6 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
     function onPointerUp() {
       const drag = dragRef.current;
       if (drag && drag.order.join() !== drag.initialOrder.join()) {
-        // TODO: call reorder API when endpoint is available
         onReorderRef.current(drag.order);
       }
       dragRef.current = null;
@@ -209,7 +425,93 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
     window.addEventListener("pointerup", onPointerUp);
   }
 
+  // ── Connect drag (step → fallback) ────────────────────────────────────────────
+
+  function startConnectDrag(nativeEvent: PointerEvent, stepId: string) {
+    const el = canvasRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const startX = nativeEvent.clientX - rect.left + el.scrollLeft;
+    const startY = nativeEvent.clientY - rect.top + el.scrollTop;
+
+    connectDragRef.current = {
+      fromStepId: stepId,
+      fromX: startX,
+      fromY: startY,
+      currentX: startX,
+      currentY: startY,
+      overFallbackId: null,
+    };
+    forceUpdate();
+
+    // Capture snapshot for closure — these don't change during a single drag
+    const capturedFallbackSteps = fallbackSteps;
+    const capturedFallbackPositions = fallbackDisplayPositions;
+
+    function onPointerMove(e: PointerEvent) {
+      const cd = connectDragRef.current;
+      if (!cd) return;
+      const el = canvasRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left + el.scrollLeft;
+      const y = e.clientY - rect.top + el.scrollTop;
+
+      let overFallbackId: string | null = null;
+      for (let i = 0; i < capturedFallbackSteps.length; i++) {
+        const fp = capturedFallbackPositions[i];
+        if (x >= fp.x && x <= fp.x + 300 && y >= fp.y && y <= fp.y + 300) {
+          overFallbackId = capturedFallbackSteps[i].id;
+          break;
+        }
+      }
+
+      connectDragRef.current = { ...cd, currentX: x, currentY: y, overFallbackId };
+      forceUpdate();
+    }
+
+    function onPointerUp() {
+      const cd = connectDragRef.current;
+      if (cd?.overFallbackId) {
+        const fbIdx = capturedFallbackSteps.findIndex(fb => fb.id === cd.overFallbackId);
+        const fbPos = capturedFallbackPositions[fbIdx];
+        if (fbPos) {
+          setPendingConnection({
+            fromStepId: cd.fromStepId,
+            toFallbackId: cd.overFallbackId,
+            // Place popover above + centered on the fallback card
+            popoverX: fbPos.x + 30,
+            popoverY: fbPos.y - 120,
+          });
+        }
+      }
+      connectDragRef.current = null;
+      forceUpdate();
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  function confirmConnection() {
+    if (!pendingConnection || !statusInput.trim()) return;
+    onConnect(pendingConnection.fromStepId, pendingConnection.toFallbackId, statusInput.trim());
+    setPendingConnection(null);
+    setStatusInput("");
+  }
+
+  function cancelConnection() {
+    setPendingConnection(null);
+    setStatusInput("");
+  }
+
+  // ── Visual layout ─────────────────────────────────────────────────────────────
+
   const drag = dragRef.current;
+  const connectDrag = connectDragRef.current;
 
   function getVisualPos(step: Step): { x: number; y: number } {
     if (!drag) return { x: step.position.x, y: step.position.y };
@@ -220,16 +522,65 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
     return { x: baseX + dx, y: baseY };
   }
 
-  // SVG connections follow current drag order at base (non-offset) positions
   const connectionOrder = drag
     ? drag.order.map(id => steps.find(s => s.id === id)).filter(Boolean) as Step[]
     : steps;
 
-  const canvasWidth = Math.max(1800, steps.length * STEP_SPACING + 80);
-  const canvasHeight = Math.max(700, ...steps.map(s => s.position.y + 320));
+  let unattachedCount = 0;
+  const fallbackDisplayPositions = fallbackSteps.map(fallback => {
+    const referencingIndices: number[] = [];
+    for (let i = 0; i < connectionOrder.length; i++) {
+      const step = connectionOrder[i];
+      if (step.routes && Object.values(step.routes).includes(fallback.id)) {
+        referencingIndices.push(i);
+      }
+    }
+    if (referencingIndices.length > 0) {
+      const avgIndex = referencingIndices.reduce((sum, i) => sum + i, 0) / referencingIndices.length;
+      return { x: 80 + avgIndex * STEP_SPACING, y: FALLBACK_ROW_Y };
+    }
+    return { x: 80 + (unattachedCount++) * STEP_SPACING, y: FALLBACK_ROW_Y };
+  });
+
+  // Spread fallbacks that share the same x so they don't overlap
+  const xGroups = new Map<number, number[]>();
+  fallbackDisplayPositions.forEach((pos, idx) => {
+    const key = Math.round(pos.x);
+    if (!xGroups.has(key)) xGroups.set(key, []);
+    xGroups.get(key)!.push(idx);
+  });
+  xGroups.forEach(indices => {
+    if (indices.length <= 1) return;
+    const baseX = fallbackDisplayPositions[indices[0]].x;
+    const totalW = indices.length * FALLBACK_CARD_WIDTH + (indices.length - 1) * FALLBACK_CARD_GAP;
+    const startX = baseX + FALLBACK_CARD_WIDTH / 2 - totalW / 2;
+    indices.forEach((idx, i) => {
+      fallbackDisplayPositions[idx] = {
+        x: startX + i * (FALLBACK_CARD_WIDTH + FALLBACK_CARD_GAP),
+        y: FALLBACK_ROW_Y,
+      };
+    });
+  });
+
+  const fallbackPosMap = new Map<string, { x: number; y: number }>();
+  fallbackSteps.forEach((fb, idx) => {
+    fallbackPosMap.set(fb.id, fallbackDisplayPositions[idx]);
+  });
+
+  const hasFallbacks = fallbackSteps.length > 0;
+  const fallbackMaxX = hasFallbacks
+    ? Math.max(...fallbackDisplayPositions.map(p => p.x + FALLBACK_CARD_WIDTH + 80))
+    : 0;
+  const canvasWidth = Math.max(1800, steps.length * STEP_SPACING + 80, fallbackMaxX);
+  const canvasHeight = Math.max(900,
+    ...steps.map(s => s.position.y + 420),
+    hasFallbacks ? FALLBACK_ROW_Y + 380 : 0
+  );
+
+  // ── Pan handlers ─────────────────────────────────────────────────────────────
 
   function handleMouseDown(e: React.MouseEvent<HTMLElement>) {
-    if (dragRef.current) return;
+    if (dragRef.current || connectDragRef.current) return;
     const el = canvasRef.current;
     if (!el) return;
     isPanning.current = true;
@@ -243,20 +594,15 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
     e.preventDefault();
     const el = canvasRef.current;
     if (!el) return;
-    const dx = e.clientX - panStart.current.x;
-    const dy = e.clientY - panStart.current.y;
-    el.scrollLeft = panStart.current.scrollLeft - dx;
-    el.scrollTop = panStart.current.scrollTop - dy;
+    el.scrollLeft = panStart.current.scrollLeft - (e.clientX - panStart.current.x);
+    el.scrollTop = panStart.current.scrollTop - (e.clientY - panStart.current.y);
   }
 
   function stopPan() {
     if (!isPanning.current) return;
     isPanning.current = false;
     const el = canvasRef.current;
-    if (el) {
-      el.style.cursor = "grab";
-      el.style.userSelect = "";
-    }
+    if (el) { el.style.cursor = "grab"; el.style.userSelect = ""; }
   }
 
   return (
@@ -268,6 +614,14 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
       onMouseUp={stopPan}
       onMouseLeave={stopPan}
     >
+      {isLoading && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/70 backdrop-blur-sm pointer-events-none">
+          <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin mb-md" />
+          <span className="font-code-sm text-code-sm text-on-surface-variant tracking-widest uppercase">
+            Loading steps...
+          </span>
+        </div>
+      )}
       <svg
         className="absolute inset-0 pointer-events-none z-0"
         style={{ width: canvasWidth, height: canvasHeight }}
@@ -276,13 +630,22 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
           <marker id="arrowhead" markerHeight="7" markerWidth="10" orient="auto" refX="0" refY="3.5">
             <polygon fill="#4d8eff" points="0 0, 10 3.5, 0 7" />
           </marker>
+          <marker id="arrowhead-error" markerHeight="7" markerWidth="10" orient="auto" refX="0" refY="3.5">
+            <polygon fill="#ff516a" points="0 0, 10 3.5, 0 7" />
+          </marker>
+          <marker id="arrowhead-ghost" markerHeight="7" markerWidth="10" orient="auto" refX="0" refY="3.5">
+            <polygon fill="#ff516a" points="0 0, 10 3.5, 0 7" opacity="0.5" />
+          </marker>
         </defs>
+
+        {/* Regular step connections */}
         {connectionOrder.slice(0, -1).map((step, i) => {
           const next = connectionOrder[i + 1];
           const x1 = 80 + i * STEP_SPACING + 320;
           const y1 = (i % 2 === 0 ? 80 : 300) + 80;
           const x2 = 80 + (i + 1) * STEP_SPACING;
           const y2 = ((i + 1) % 2 === 0 ? 80 : 300) + 80;
+          const isActive = !hoveredNodeId || hoveredNodeId === step.id || hoveredNodeId === next.id;
           return (
             <path
               key={`conn-${step.id}-${next.id}`}
@@ -291,13 +654,82 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
               fill="none"
               markerEnd="url(#arrowhead)"
               stroke="#4d8eff"
-              strokeWidth="2"
+              strokeWidth={isActive ? 2.5 : 1.5}
+              opacity={isActive ? 1 : 0.12}
+              style={{ transition: "opacity 0.15s, stroke-width 0.15s" }}
             />
           );
         })}
+
+        {/* Fallback connections — paths only, badges rendered as HTML below */}
+        {connectionOrder.map((step, i) => {
+          if (!step.routes || Object.keys(step.routes).length === 0) return null;
+          const stepX = 80 + i * STEP_SPACING;
+          const stepY = i % 2 === 0 ? 80 : 300;
+
+          return Object.entries(step.routes).map(([statusCode, fallbackId]) => {
+            const fbPos = fallbackPosMap.get(fallbackId);
+            if (!fbPos) return null;
+
+            const x1 = stepX + 160;
+            const y1 = stepY + STEP_CARD_HEIGHT;
+            const x2 = fbPos.x + 150;
+            const y2 = fbPos.y;
+
+            const isActive = !hoveredNodeId || hoveredNodeId === step.id || hoveredNodeId === fallbackId;
+
+            return (
+              <path
+                key={`fallback-conn-${step.id}-${statusCode}`}
+                d={`M ${x1} ${y1} C ${x1} ${y1 + 80}, ${x2} ${y2 - 80}, ${x2} ${y2}`}
+                fill="none"
+                stroke="#ff516a"
+                strokeWidth={isActive ? 2.5 : 1.5}
+                strokeDasharray="6 4"
+                markerEnd="url(#arrowhead-error)"
+                opacity={isActive ? 1 : 0.12}
+                style={{ transition: "opacity 0.15s, stroke-width 0.15s" }}
+              />
+            );
+          });
+        })}
+
+        {/* Ghost connection line while dragging */}
+        {connectDrag && (
+          <path
+            d={`M ${connectDrag.fromX} ${connectDrag.fromY} C ${connectDrag.fromX} ${connectDrag.fromY + 80}, ${connectDrag.currentX} ${connectDrag.currentY - 80}, ${connectDrag.currentX} ${connectDrag.currentY}`}
+            fill="none"
+            stroke="#ff516a"
+            strokeWidth="2"
+            strokeDasharray="6 4"
+            opacity="0.5"
+            markerEnd="url(#arrowhead-ghost)"
+          />
+        )}
+
+        {/* Fallback row separator */}
+        {hasFallbacks && (
+          <line
+            x1="40" y1={FALLBACK_ROW_Y - 30}
+            x2={canvasWidth - 40} y2={FALLBACK_ROW_Y - 30}
+            stroke="#ff516a" strokeWidth="1" strokeDasharray="4 8" opacity="0.25"
+          />
+        )}
       </svg>
 
+      {/* Fallback row label */}
+      {hasFallbacks && (
+        <div
+          className="absolute font-label-caps text-label-caps text-error/50 flex items-center gap-xs pointer-events-none"
+          style={{ left: 40, top: FALLBACK_ROW_Y - 22 }}
+        >
+          <span className="material-symbols-outlined text-xs">alt_route</span>
+          FALLBACK HANDLERS
+        </div>
+      )}
+
       <div className="absolute inset-0" style={{ minWidth: canvasWidth, minHeight: canvasHeight }}>
+        {/* Regular steps */}
         {steps.map((step) => {
           const { x, y } = getVisualPos(step);
           return (
@@ -313,10 +745,125 @@ export default function FlowCanvas({ steps, onStepClick, onStepDelete, onReorder
                 e.stopPropagation();
                 startStepDrag(step.id, e.clientX);
               }}
+              onPortPointerDown={(e, stepId) => startConnectDrag(e, stepId)}
+              onMouseEnter={() => setHoveredNodeId(step.id)}
+              onMouseLeave={() => setHoveredNodeId(null)}
               stepResult={stepResults?.[step.id]}
             />
           );
         })}
+
+        {/* Fallback steps */}
+        {fallbackSteps.map((fb, idx) => {
+          const pos = fallbackDisplayPositions[idx];
+          return (
+            <FallbackStepNode
+              key={fb.id}
+              step={fb}
+              visualX={pos.x}
+              visualY={pos.y}
+              onClick={() => onFallbackStepClick(fb)}
+              onDelete={() => onFallbackStepDelete(fb.id)}
+              onMouseEnter={() => setHoveredNodeId(fb.id)}
+              onMouseLeave={() => setHoveredNodeId(null)}
+              stepResult={stepResults?.[fb.id]}
+              isDropTarget={connectDrag?.overFallbackId === fb.id}
+            />
+          );
+        })}
+
+        {/* Connection disconnect badges (HTML for reliable click handling) */}
+        {connectionOrder.map((step, i) => {
+          if (!step.routes || Object.keys(step.routes).length === 0) return null;
+          const stepX = 80 + i * STEP_SPACING;
+          const stepY = i % 2 === 0 ? 80 : 300;
+
+          return Object.entries(step.routes).map(([statusCode, fallbackId]) => {
+            const fbPos = fallbackPosMap.get(fallbackId);
+            if (!fbPos) return null;
+
+            const x1 = stepX + 160;
+            const y1 = stepY + STEP_CARD_HEIGHT;
+            const x2 = fbPos.x + 150;
+            const y2 = fbPos.y;
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            const isActive = !hoveredNodeId || hoveredNodeId === step.id || hoveredNodeId === fallbackId;
+
+            return (
+              <div
+                key={`badge-${step.id}-${statusCode}`}
+                className="absolute z-20 flex items-center gap-px select-none group"
+                style={{
+                  left: midX - 30,
+                  top: midY - 11,
+                  opacity: isActive ? 1 : 0.12,
+                  transition: "opacity 0.15s",
+                }}
+                onMouseEnter={() => setHoveredNodeId(step.id)}
+                onMouseLeave={() => setHoveredNodeId(null)}
+              >
+                <div className="flex items-center bg-background border border-error rounded overflow-hidden">
+                  <span className="font-code-sm text-[9px] font-bold tracking-widest text-error px-xs py-0.5 leading-none">
+                    {statusCode}
+                  </span>
+                  <button
+                    className="px-xs py-0.5 text-error/60 hover:text-error hover:bg-error/20 transition-colors leading-none border-l border-error/40 text-xs font-bold"
+                    onClick={(e) => { e.stopPropagation(); onDisconnect(step.id, statusCode); }}
+                    title="Remove connection"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            );
+          });
+        })}
+
+        {/* Status code popover */}
+        {pendingConnection && (
+          <div
+            className="absolute z-50 bg-surface-container-high border border-error/60 rounded-xl shadow-2xl p-md min-w-[220px]"
+            style={{ left: pendingConnection.popoverX, top: pendingConnection.popoverY }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-xs mb-sm">
+              <span className="material-symbols-outlined text-error text-sm">alt_route</span>
+              <span className="font-label-caps text-label-caps text-error">Trigger Status Code</span>
+            </div>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mb-sm">
+              When this step returns which HTTP status code should trigger the fallback?
+            </p>
+            <input
+              autoFocus
+              type="text"
+              value={statusInput}
+              onChange={(e) => setStatusInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && statusInput.trim()) confirmConnection();
+                if (e.key === "Escape") cancelConnection();
+              }}
+              placeholder="e.g. 401"
+              className="w-full bg-background border border-outline-variant rounded-lg p-sm font-code-md text-code-md text-on-surface focus:border-error outline-none transition-colors mb-sm"
+            />
+            <div className="flex gap-xs justify-end">
+              <button
+                onClick={cancelConnection}
+                className="px-md py-xs rounded-lg text-on-surface-variant hover:bg-surface-variant font-bold transition-all text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmConnection}
+                disabled={!statusInput.trim()}
+                className="px-md py-xs rounded-lg bg-error text-on-error font-bold transition-all text-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-xs"
+              >
+                <span className="material-symbols-outlined text-sm">link</span>
+                Link
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

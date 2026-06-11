@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { Step, StepFormData } from './stepsSlice';
 
-type BackendStep = Omit<Step, 'position'>;
+type BackendStep = Step;
 
 export type FlowStatus = 'ACTIVE' | 'PAUSED' | 'DRAFT';
 
@@ -11,6 +11,7 @@ export interface FlowWSResponse {
   message: string,
   status: FlowWSStatus,
   success: boolean,
+  response?: unknown,
   [key: string]: unknown  // dynamic stepId → boolean field
 }
 
@@ -23,6 +24,7 @@ export interface FlowDTO{
   globalVariables: Record<string, string>;
   globalAssertions: Record<string, any>;
   steps: Step[];
+  fallbackSteps: Step[];
 }
 
 export interface FlowRecord {
@@ -35,6 +37,7 @@ export interface FlowRecord {
   globalVariables: Record<string, string>;
   globalAssertions: Record<string, any>;
   steps: Step[];
+  fallbackSteps: Step[];
   // Frontend-only display fields
   status: FlowStatus;
   lastModified: string;
@@ -66,7 +69,11 @@ const flowsSlice = createSlice({
   initialState,
   reducers: {
     setFlows(state, action: PayloadAction<FlowRecord[]>){
-      const payloadFlows = action.payload;
+      const payloadFlows = action.payload.map(f => ({
+        ...f,
+        steps: f.steps ?? [],
+        fallbackSteps: f.fallbackSteps ?? [],
+      }));
       state.flows = payloadFlows;
       if(payloadFlows.length > 0){
         state.activeFlowId = payloadFlows[0].id;
@@ -90,6 +97,7 @@ const flowsSlice = createSlice({
         iconColor: 'text-primary',
         iconBg: 'bg-primary/10',
         steps: [],
+        fallbackSteps: [],
       });
       state.activeFlowId = acceptedFlow.id;
     },
@@ -118,18 +126,79 @@ const flowsSlice = createSlice({
     setActiveFlow(state, action: PayloadAction<string | null>) {
       state.activeFlowId = action.payload;
     },
-    addStepToFlow(state, action: PayloadAction<{ flowId: string; stepData: StepFormData; stepId?: string }>) {
+    addStepToFlow(state, action: PayloadAction<{ flowId: string; stepData: StepFormData; stepId?: string; position?: { x: number; y: number } }>) {
       const flow = state.flows.find((f) => f.id === action.payload.flowId);
       if (!flow) return;
       const last = flow.steps[flow.steps.length - 1];
-      const newX = last ? last.position.x + 440 : 80;
-      const newY = last ? (last.position.y <= 150 ? 300 : 80) : 80;
+      const fallbackX = last ? last.position.x + 440 : 80;
+      const fallbackY = last ? (last.position.y <= 150 ? 300 : 80) : 80;
       flow.steps.push({
         ...action.payload.stepData,
+        routes: action.payload.stepData.routes ?? {},
         id: action.payload.stepId ?? Date.now().toString(),
-        position: { x: newX, y: newY },
+        position: action.payload.position ?? { x: fallbackX, y: fallbackY },
       });
       flow.lastModified = todayLabel();
+    },
+    addFallbackStepToFlow(state, action: PayloadAction<{ flowId: string; stepData: StepFormData; stepId?: string; position?: { x: number; y: number } }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      if (!flow.fallbackSteps) flow.fallbackSteps = [];
+      const last = flow.fallbackSteps[flow.fallbackSteps.length - 1];
+      const fallbackX = last ? last.position.x + 440 : 80;
+      flow.fallbackSteps.push({
+        ...action.payload.stepData,
+        routes: action.payload.stepData.routes ?? {},
+        id: action.payload.stepId ?? Date.now().toString(),
+        position: action.payload.position ?? { x: fallbackX, y: 520 },
+      });
+      flow.lastModified = todayLabel();
+    },
+    updateFallbackStepInFlow(state, action: PayloadAction<{ flowId: string; step: Step }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      if (!flow.fallbackSteps) flow.fallbackSteps = [];
+      const idx = flow.fallbackSteps.findIndex((s) => s.id === action.payload.step.id);
+      if (idx !== -1) {
+        flow.fallbackSteps[idx] = action.payload.step;
+        flow.lastModified = todayLabel();
+      }
+    },
+    removeFallbackStepFromFlow(state, action: PayloadAction<{ flowId: string; fallbackId: string }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (flow) {
+        flow.fallbackSteps = (flow.fallbackSteps ?? []).filter((s) => s.id !== action.payload.fallbackId);
+        flow.lastModified = todayLabel();
+      }
+    },
+    removeFallbackRoutes(state, action: PayloadAction<{ flowId: string; fallbackStepId: string }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      flow.steps.forEach(step => {
+        if (step.routes) {
+          step.routes = Object.fromEntries(
+            Object.entries(step.routes).filter(([, id]) => id !== action.payload.fallbackStepId)
+          );
+        }
+      });
+      flow.lastModified = todayLabel();
+    },
+    removeRouteFromStep(state, action: PayloadAction<{ flowId: string; stepId: string; statusCode: string }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      const step = flow.steps.find((s) => s.id === action.payload.stepId);
+      if (step?.routes) {
+        delete step.routes[action.payload.statusCode];
+        flow.lastModified = todayLabel();
+      }
+    },
+    setFlowFallbackSteps(state, action: PayloadAction<{ flowId: string; fallbacks: Step[] }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      flow.fallbackSteps = (action.payload.fallbacks ?? []).map((fallback) => ({
+        ...fallback,
+        routes: (fallback as any).routes ?? {},
+      }));
     },
     updateStepInFlow(state, action: PayloadAction<{ flowId: string; step: Step }>) {
       const flow = state.flows.find((f) => f.id === action.payload.flowId);
@@ -143,11 +212,10 @@ const flowsSlice = createSlice({
     setFlowSteps(state, action: PayloadAction<{ flowId: string; steps: BackendStep[] }>) {
       const flow = state.flows.find((f) => f.id === action.payload.flowId);
       if (!flow) return;
-      flow.steps = action.payload.steps.map((step, index) => {
-        const x = 80 + index * 440;
-        const y = index % 2 === 0 ? 80 : 300;
-        return { ...step, position: { x, y } };
-      });
+      flow.steps = action.payload.steps.map((step) => ({
+        ...step,
+        routes: (step as any).routes ?? {},
+      }));
     },
     removeStepFromFlow(state, action: PayloadAction<{ flowId: string; stepId: string }>) {
       const flow = state.flows.find((f) => f.id === action.payload.flowId);
@@ -159,15 +227,15 @@ const flowsSlice = createSlice({
     setExecutionId(state, action: PayloadAction<string | null>){
       state.executionId = action.payload;
     },
-    reorderSteps(state, action: PayloadAction<{ flowId: string; orderedIds: string[] }>) {
+    reorderSteps(state, action: PayloadAction<{ flowId: string; steps: { id: string; position: { x: number; y: number } }[] }>) {
       const flow = state.flows.find(f => f.id === action.payload.flowId);
       if (!flow) return;
       const stepMap = new Map(flow.steps.map(s => [s.id, s]));
-      flow.steps = action.payload.orderedIds
-        .filter(id => stepMap.has(id))
-        .map((id, index) => ({
+      flow.steps = action.payload.steps
+        .filter(({ id }) => stepMap.has(id))
+        .map(({ id, position }) => ({
           ...stepMap.get(id)!,
-          position: { x: 80 + index * 440, y: index % 2 === 0 ? 80 : 300 },
+          position,
         }));
     },
   },
@@ -185,5 +253,11 @@ export const {
   removeStepFromFlow,
   setExecutionId,
   reorderSteps,
+  addFallbackStepToFlow,
+  updateFallbackStepInFlow,
+  removeFallbackStepFromFlow,
+  removeFallbackRoutes,
+  removeRouteFromStep,
+  setFlowFallbackSteps,
 } = flowsSlice.actions;
 export default flowsSlice.reducer;

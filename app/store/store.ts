@@ -4,6 +4,7 @@ import flowConfigReducer from './flowConfigSlice';
 import flowsReducer from './flowsSlice';
 import projectsReducer from './projectsSlice';
 import userReducer from './userSlice';
+import uiReducer from './uiSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     flows: flowsReducer,
     projects: projectsReducer,
     user: userReducer,
+    ui: uiReducer,
   },
 });
 

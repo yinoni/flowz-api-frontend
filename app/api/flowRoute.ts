@@ -4,6 +4,9 @@ import type { Step, StepFormData } from "../store/stepsSlice";
 
 const API_ROUTE = '/flow';
 
+type StepGroup = "STEPS" | "FALLBACKS";
+
+
 
 export const createFlow = async (projectId: string, flowName: string, globalURL: string, globalHeaders: Record<string, string> = {}, globalVariables: Record<string, string> = {}): Promise<APIResponse | APIErrorResponse> => {
     try {
@@ -68,13 +71,20 @@ export const deleteFlow = async (flowId: string): Promise<APIResponse | APIError
     }
 }
 
-export const addStep = async (flowId: string, stepId: string, stepData: StepFormData): Promise<APIResponse | APIErrorResponse> => {
+export const addStep = async (
+    flowId: string,
+    stepData: StepFormData,
+    stepGroup: StepGroup,
+    position: { x: number; y: number }
+): Promise<APIResponse | APIErrorResponse> => {
     try {
-        await api.post(`${API_ROUTE}/steps/${flowId}`, { ...stepData, id: stepId });
-
+        const request = { step: { ...stepData, position }, stepGroup };
+        const response = await api.post(`${API_ROUTE}/steps/${flowId}`, request);
+        const resp = response.data;
+        const stepId = typeof resp === 'string' ? resp : resp?.id ?? null;
         return {
             success: true,
-            data: null,
+            data: stepId,
             msg: 'Step added successfully'
         };
     } catch (error: any) {
@@ -87,9 +97,19 @@ export const addStep = async (flowId: string, stepId: string, stepData: StepForm
     }
 }
 
-export const editStep = async (flowId: string, stepId: string, stepData: StepFormData): Promise<APIResponse | APIErrorResponse> => {
+export const editStep = async (
+    flowId: string,
+    stepId: string,
+    stepData: StepFormData,
+    stepGroup: StepGroup,
+    position?: { x: number; y: number }
+): Promise<APIResponse | APIErrorResponse> => {
     try {
-        await api.patch(`${API_ROUTE}/steps/${flowId}`, { ...stepData, id: stepId });
+        const stepRequest = {
+            step: { ...stepData, id: stepId, ...(position && { position }) },
+            stepGroup: stepGroup
+        }
+        await api.patch(`${API_ROUTE}/steps/${flowId}`, stepRequest);
 
         return {
             success: true,
@@ -189,10 +209,38 @@ export const setGlobals = async (flowId: string, globals: Record<string, any>, f
     }
 } 
 
-export const reorderSteps = async (flowId: string, newSteps: string[]): Promise<APIResponse | APIErrorResponse> => {
+export const addFallbackStep = async (flowId: string, stepData: StepFormData): Promise<APIResponse | APIErrorResponse> => {
+    try {
+        const response = await api.post(`${API_ROUTE}/fallback/${flowId}`, { ...stepData });
+        const stepId = typeof response.data === 'string' ? response.data : response.data?.id ?? null;
+        return { success: true, data: stepId, msg: 'Fallback step added successfully' };
+    } catch (error: any) {
+        return {
+            success: false,
+            ...error.response.data,
+        }
+    }
+}
+
+export const deleteFallbackStep = async (flowId: string, fallbackId: string): Promise<APIResponse | APIErrorResponse> => {
+    try {
+        await api.delete(`${API_ROUTE}/fallback/${flowId}`, { params: { fallbackId } });
+        return { success: true, data: null, msg: 'Fallback step deleted successfully' };
+    } catch (error: any) {
+        return {
+            success: false,
+            ...error.response.data,
+        }
+    }
+}
+
+export const reorderSteps = async (
+    flowId: string,
+    steps: { id: string; position: { x: number; y: number } }[]
+): Promise<APIResponse | APIErrorResponse> => {
     try{
         const apiResponse = await api.patch(`${API_ROUTE}/steps/${flowId}/reorder`, {
-            steps: newSteps
+            steps
         });
         return {
             success: true,
