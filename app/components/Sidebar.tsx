@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 
 const NAV_ITEMS = [
   { icon: "account_tree", label: "My Flows", href: "/flows" },
@@ -15,17 +16,8 @@ export function Sidebar() {
   return (
     <aside className="bg-surface-container h-full w-sidebar-width flex flex-col py-md px-sm border-r border-outline-variant shrink-0">
       <div className="mb-lg px-md flex items-center gap-sm">
-        <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
-          <span
-            className="material-symbols-outlined text-on-primary-container"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            account_tree
-          </span>
-        </div>
-        <div>
-          <h1 className="font-headline-md text-headline-md text-primary">Flow Architect</h1>
-          <p className="text-on-surface-variant text-body-sm opacity-70">Premium Tier</p>
+        <div className="w-1 h-1 rounded flex items-center justify-center">
+          
         </div>
       </div>
 

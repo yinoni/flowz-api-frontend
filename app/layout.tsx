@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FlowState | API Flow Builder",
+  title: "FlowZ | API Tester",
   description: "Visual API flow builder and test executor",
 };
 

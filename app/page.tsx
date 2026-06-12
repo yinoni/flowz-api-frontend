@@ -865,7 +865,7 @@ export default function Home() {
           ))}
         </div>
         <div className="h-6 px-lg flex items-center border-t border-outline-variant bg-surface-container-lowest shrink-0">
-          <div className="text-[10px] text-outline">© 2024 FlowState Engine. All logs encrypted.</div>
+          <div className="text-[10px] text-outline">© 2024 FlowZ Engine</div>
         </div>
       </footer>
     </>

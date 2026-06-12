@@ -15,6 +15,7 @@ import { setProjects } from "../store/projectsSlice";
 import { getProjectFlows } from "../api/flowRoute";
 import { setFlows } from "../store/flowsSlice";
 import { GoogleLogin } from "@react-oauth/google";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -133,21 +134,23 @@ export default function LoginPage() {
 
         {/* Brand header */}
         <div className="text-center mb-12">
-          <div className="w-14 h-14 bg-primary-container rounded-xl flex items-center justify-center mx-auto mb-lg shadow-lg shadow-primary/20">
-            <span
-              className="material-symbols-outlined text-xl text-on-background"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              account_tree
-            </span>
+          <div>
+          <Image
+            src={require('../assets/logo.png')}
+            alt="FlowZ"
+            width={56}
+            height={56}
+            className="rounded-xl mx-auto mb-lg shadow-[0_0_32px_rgba(20,50,160,0.9)]"
+            priority
+          />
           </div>
           <h1 className="font-headline-lg text-headline-lg text-on-surface mb-sm">
             Welcome back, Architect
           </h1>
           <p className="text-on-surface-variant font-body-md">
             {isSignUp
-              ? "Provision your FlowState account"
-              : "Authenticate to your FlowState workspace"}
+              ? "Provision your FlowZ account"
+              : "Authenticate to your FlowZ workspace"}
           </p>
         </div>
 
@@ -249,7 +252,7 @@ export default function LoginPage() {
           {/* Footer toggle */}
           <div className="bg-surface-container-low border-t border-outline-variant px-xl py-lg text-center">
             <span className="text-on-surface-variant font-body-sm text-body-sm">
-              {isSignUp ? "Already have an account? " : "New to FlowState? "}
+              {isSignUp ? "Already have an account? " : "New to FlowZ? "}
             </span>
             <button
               type="button"
@@ -263,7 +266,7 @@ export default function LoginPage() {
 
         {/* Footer note */}
         <p className="text-center text-outline font-code-sm text-code-sm mt-lg">
-          © 2024 FlowState Engine · All transmissions encrypted
+          © 2024 FlowZ Engine · All transmissions encrypted
         </p>
       </div>
     </div>

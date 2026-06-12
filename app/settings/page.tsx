@@ -55,8 +55,8 @@ export default function SettingsPage() {
 
       {/* Footer */}
       <footer className="bg-surface-container-lowest flex justify-between items-center px-lg h-10 border-t border-outline-variant shrink-0">
-        <span className="font-code-md text-code-md text-tertiary">FlowState Engine</span>
-        <span className="font-code-sm text-code-sm text-outline">© 2024 FlowState Engine. All logs encrypted.</span>
+        <span className="font-code-md text-code-md text-tertiary">FlowZ Engine</span>
+        <span className="font-code-sm text-code-sm text-outline">© 2024 FlowZ Engine.</span>
       </footer>
     </>
   );
