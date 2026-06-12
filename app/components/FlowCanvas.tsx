@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useReducer, useState } from "react";
+import React, { useRef, useReducer, useState, useEffect } from "react";
 import type { Step } from "../store/stepsSlice";
 import { getHttpMethodColor } from "../utils/utils";
 
@@ -34,10 +34,12 @@ interface PendingConnection {
 
 const STEP_SPACING = 440;
 const STEP_SWAP_THRESHOLD = STEP_SPACING / 2;
-const FALLBACK_ROW_Y = 800;
 const STEP_CARD_HEIGHT = 219; // card base + connect port strip (h-7 + border-t ≈ 29px)
 const FALLBACK_CARD_WIDTH = 300;
 const FALLBACK_CARD_GAP = 24;
+const FALLBACK_ROW_CLEARANCE = 280; // minimum clearance below the tallest step row
+const FALLBACK_ROW_MIN = 480;
+const FALLBACK_PEEK_AMOUNT = 110; // px of the fallback section visible before scrolling
 
 // ─── Regular Step Node ────────────────────────────────────────────────────────
 
@@ -53,6 +55,7 @@ interface StepNodeProps {
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   stepResult?: boolean;
+  dimmed?: boolean;
 }
 
 function StepNode({
@@ -67,6 +70,7 @@ function StepNode({
   onMouseEnter,
   onMouseLeave,
   stepResult,
+  dimmed,
 }: StepNodeProps) {
   const hasHeaders = Object.keys(step.headers ?? {}).length > 0;
   const hasExtract = Object.keys(step.extract ?? {}).length > 0;
@@ -89,8 +93,9 @@ function StepNode({
         top: visualY,
         transform: isDragging ? "scale(1.03) rotate(-0.5deg)" : undefined,
         transition: isDragging
-          ? "box-shadow 0.1s"
-          : "left 0.15s ease, top 0.15s ease, box-shadow 0.1s",
+          ? "box-shadow 0.1s, opacity 0.15s"
+          : "left 0.15s ease, top 0.15s ease, box-shadow 0.1s, opacity 0.15s",
+        opacity: dimmed ? 0.4 : 1,
       }}
       onClick={isDragging ? undefined : onClick}
       onMouseEnter={onMouseEnter}
@@ -230,6 +235,7 @@ interface FallbackStepNodeProps {
   onMouseLeave: () => void;
   stepResult?: boolean;
   isDropTarget: boolean;
+  dimmed?: boolean;
 }
 
 function FallbackStepNode({
@@ -242,6 +248,7 @@ function FallbackStepNode({
   onMouseLeave,
   stepResult,
   isDropTarget,
+  dimmed,
 }: FallbackStepNodeProps) {
   const hasExtract = Object.keys(step.extract ?? {}).length > 0;
   const hasHeaders = Object.keys(step.headers ?? {}).length > 0;
@@ -257,7 +264,7 @@ function FallbackStepNode({
           ? "border-error shadow-error/30"
           : "border-error/60 hover:border-error"
       }`}
-      style={{ left: visualX, top: visualY }}
+      style={{ left: visualX, top: visualY, opacity: dimmed ? 0.4 : 1, transition: "opacity 0.15s" }}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -382,6 +389,17 @@ export default function FlowCanvas({
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [statusInput, setStatusInput] = useState("");
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [hoveredConnection, setHoveredConnection] = useState<{ stepId: string; fallbackId: string } | null>(null);
+  const [canvasViewportHeight, setCanvasViewportHeight] = useState(900);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    setCanvasViewportHeight(el.clientHeight);
+    const ro = new ResizeObserver(() => setCanvasViewportHeight(el.clientHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // ── Step reorder drag ─────────────────────────────────────────────────────────
 
@@ -526,6 +544,15 @@ export default function FlowCanvas({
     ? drag.order.map(id => steps.find(s => s.id === id)).filter(Boolean) as Step[]
     : steps;
 
+  // Position the fallback section so FALLBACK_PEEK_AMOUNT px of it shows before the user scrolls.
+  // The step-clearance floor ensures it never overlaps regular step cards.
+  const maxStepY = steps.length > 0 ? Math.max(...steps.map(s => s.position.y)) : 80;
+  const fallbackRowY = Math.max(
+    FALLBACK_ROW_MIN,
+    maxStepY + FALLBACK_ROW_CLEARANCE,
+    canvasViewportHeight - FALLBACK_PEEK_AMOUNT,
+  );
+
   let unattachedCount = 0;
   const fallbackDisplayPositions = fallbackSteps.map(fallback => {
     const referencingIndices: number[] = [];
@@ -537,9 +564,9 @@ export default function FlowCanvas({
     }
     if (referencingIndices.length > 0) {
       const avgIndex = referencingIndices.reduce((sum, i) => sum + i, 0) / referencingIndices.length;
-      return { x: 80 + avgIndex * STEP_SPACING, y: FALLBACK_ROW_Y };
+      return { x: 80 + avgIndex * STEP_SPACING, y: fallbackRowY };
     }
-    return { x: 80 + (unattachedCount++) * STEP_SPACING, y: FALLBACK_ROW_Y };
+    return { x: 80 + (unattachedCount++) * STEP_SPACING, y: fallbackRowY };
   });
 
   // Spread fallbacks that share the same x so they don't overlap
@@ -557,7 +584,7 @@ export default function FlowCanvas({
     indices.forEach((idx, i) => {
       fallbackDisplayPositions[idx] = {
         x: startX + i * (FALLBACK_CARD_WIDTH + FALLBACK_CARD_GAP),
-        y: FALLBACK_ROW_Y,
+        y: fallbackRowY,
       };
     });
   });
@@ -574,7 +601,7 @@ export default function FlowCanvas({
   const canvasWidth = Math.max(1800, steps.length * STEP_SPACING + 80, fallbackMaxX);
   const canvasHeight = Math.max(900,
     ...steps.map(s => s.position.y + 420),
-    hasFallbacks ? FALLBACK_ROW_Y + 380 : 0
+    hasFallbacks ? fallbackRowY + 380 : 0
   );
 
   // ── Pan handlers ─────────────────────────────────────────────────────────────
@@ -645,7 +672,9 @@ export default function FlowCanvas({
           const y1 = (i % 2 === 0 ? 80 : 300) + 80;
           const x2 = 80 + (i + 1) * STEP_SPACING;
           const y2 = ((i + 1) % 2 === 0 ? 80 : 300) + 80;
-          const isActive = !hoveredNodeId || hoveredNodeId === step.id || hoveredNodeId === next.id;
+          // Dim blue lines when a connection line or an unrelated node is hovered
+          const isActive = (!hoveredNodeId && !hoveredConnection) ||
+            (!!hoveredNodeId && (hoveredNodeId === step.id || hoveredNodeId === next.id));
           return (
             <path
               key={`conn-${step.id}-${next.id}`}
@@ -655,13 +684,13 @@ export default function FlowCanvas({
               markerEnd="url(#arrowhead)"
               stroke="#4d8eff"
               strokeWidth={isActive ? 2.5 : 1.5}
-              opacity={isActive ? 1 : 0.12}
+              opacity={isActive ? 1 : 0.35}
               style={{ transition: "opacity 0.15s, stroke-width 0.15s" }}
             />
           );
         })}
 
-        {/* Fallback connections — paths only, badges rendered as HTML below */}
+        {/* Fallback connections — visible paths + invisible 20px hit-area paths */}
         {connectionOrder.map((step, i) => {
           if (!step.routes || Object.keys(step.routes).length === 0) return null;
           const stepX = 80 + i * STEP_SPACING;
@@ -675,21 +704,36 @@ export default function FlowCanvas({
             const y1 = stepY + STEP_CARD_HEIGHT;
             const x2 = fbPos.x + 150;
             const y2 = fbPos.y;
+            const d = `M ${x1} ${y1} C ${x1} ${y1 + 80}, ${x2} ${y2 - 80}, ${x2} ${y2}`;
 
-            const isActive = !hoveredNodeId || hoveredNodeId === step.id || hoveredNodeId === fallbackId;
+            const isActive = (!hoveredNodeId && !hoveredConnection) ||
+              (!!hoveredNodeId && (hoveredNodeId === step.id || hoveredNodeId === fallbackId)) ||
+              (hoveredConnection?.stepId === step.id && hoveredConnection?.fallbackId === fallbackId);
 
             return (
-              <path
-                key={`fallback-conn-${step.id}-${statusCode}`}
-                d={`M ${x1} ${y1} C ${x1} ${y1 + 80}, ${x2} ${y2 - 80}, ${x2} ${y2}`}
-                fill="none"
-                stroke="#ff516a"
-                strokeWidth={isActive ? 2.5 : 1.5}
-                strokeDasharray="6 4"
-                markerEnd="url(#arrowhead-error)"
-                opacity={isActive ? 1 : 0.12}
-                style={{ transition: "opacity 0.15s, stroke-width 0.15s" }}
-              />
+              <React.Fragment key={`fallback-group-${step.id}-${statusCode}`}>
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="#ff516a"
+                  strokeWidth={isActive ? 2.5 : 1.5}
+                  strokeDasharray="6 4"
+                  markerEnd="url(#arrowhead-error)"
+                  opacity={isActive ? 1 : 0.35}
+                  style={{ transition: "opacity 0.15s, stroke-width 0.15s" }}
+                />
+                {/* Wide invisible stroke for easy hover detection */}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="white"
+                  strokeOpacity={0}
+                  strokeWidth={20}
+                  style={{ pointerEvents: "stroke" as React.CSSProperties["pointerEvents"], cursor: "crosshair" }}
+                  onMouseEnter={() => setHoveredConnection({ stepId: step.id, fallbackId })}
+                  onMouseLeave={() => setHoveredConnection(null)}
+                />
+              </React.Fragment>
             );
           });
         })}
@@ -710,8 +754,8 @@ export default function FlowCanvas({
         {/* Fallback row separator */}
         {hasFallbacks && (
           <line
-            x1="40" y1={FALLBACK_ROW_Y - 30}
-            x2={canvasWidth - 40} y2={FALLBACK_ROW_Y - 30}
+            x1="40" y1={fallbackRowY - 30}
+            x2={canvasWidth - 40} y2={fallbackRowY - 30}
             stroke="#ff516a" strokeWidth="1" strokeDasharray="4 8" opacity="0.25"
           />
         )}
@@ -721,7 +765,7 @@ export default function FlowCanvas({
       {hasFallbacks && (
         <div
           className="absolute font-label-caps text-label-caps text-error/50 flex items-center gap-xs pointer-events-none"
-          style={{ left: 40, top: FALLBACK_ROW_Y - 22 }}
+          style={{ left: 40, top: fallbackRowY - 22 }}
         >
           <span className="material-symbols-outlined text-xs">alt_route</span>
           FALLBACK HANDLERS
@@ -732,6 +776,9 @@ export default function FlowCanvas({
         {/* Regular steps */}
         {steps.map((step) => {
           const { x, y } = getVisualPos(step);
+          const dimmed =
+            (hoveredNodeId !== null && hoveredNodeId !== step.id) ||
+            (hoveredConnection !== null && hoveredConnection.stepId !== step.id);
           return (
             <StepNode
               key={step.id}
@@ -740,7 +787,7 @@ export default function FlowCanvas({
               visualY={y}
               isDragging={drag?.stepId === step.id}
               onClick={() => onStepClick(step)}
-              onDelete={() => onStepDelete(step.id)}
+              onDelete={() => { setHoveredNodeId(null); setHoveredConnection(null); onStepDelete(step.id); }}
               onDragHandlePointerDown={(e) => {
                 e.stopPropagation();
                 startStepDrag(step.id, e.clientX);
@@ -749,6 +796,7 @@ export default function FlowCanvas({
               onMouseEnter={() => setHoveredNodeId(step.id)}
               onMouseLeave={() => setHoveredNodeId(null)}
               stepResult={stepResults?.[step.id]}
+              dimmed={dimmed}
             />
           );
         })}
@@ -756,6 +804,9 @@ export default function FlowCanvas({
         {/* Fallback steps */}
         {fallbackSteps.map((fb, idx) => {
           const pos = fallbackDisplayPositions[idx];
+          const dimmed =
+            (hoveredNodeId !== null && hoveredNodeId !== fb.id) ||
+            (hoveredConnection !== null && hoveredConnection.fallbackId !== fb.id);
           return (
             <FallbackStepNode
               key={fb.id}
@@ -763,11 +814,12 @@ export default function FlowCanvas({
               visualX={pos.x}
               visualY={pos.y}
               onClick={() => onFallbackStepClick(fb)}
-              onDelete={() => onFallbackStepDelete(fb.id)}
+              onDelete={() => { setHoveredNodeId(null); setHoveredConnection(null); onFallbackStepDelete(fb.id); }}
               onMouseEnter={() => setHoveredNodeId(fb.id)}
               onMouseLeave={() => setHoveredNodeId(null)}
               stepResult={stepResults?.[fb.id]}
               isDropTarget={connectDrag?.overFallbackId === fb.id}
+              dimmed={dimmed}
             />
           );
         })}
@@ -788,7 +840,9 @@ export default function FlowCanvas({
             const y2 = fbPos.y;
             const midX = (x1 + x2) / 2;
             const midY = (y1 + y2) / 2;
-            const isActive = !hoveredNodeId || hoveredNodeId === step.id || hoveredNodeId === fallbackId;
+            const isActive = (!hoveredNodeId && !hoveredConnection) ||
+              (!!hoveredNodeId && (hoveredNodeId === step.id || hoveredNodeId === fallbackId)) ||
+              (hoveredConnection?.stepId === step.id && hoveredConnection?.fallbackId === fallbackId);
 
             return (
               <div
@@ -800,8 +854,8 @@ export default function FlowCanvas({
                   opacity: isActive ? 1 : 0.12,
                   transition: "opacity 0.15s",
                 }}
-                onMouseEnter={() => setHoveredNodeId(step.id)}
-                onMouseLeave={() => setHoveredNodeId(null)}
+                onMouseEnter={() => setHoveredConnection({ stepId: step.id, fallbackId })}
+                onMouseLeave={() => setHoveredConnection(null)}
               >
                 <div className="flex items-center bg-background border border-error rounded overflow-hidden">
                   <span className="font-code-sm text-[9px] font-bold tracking-widest text-error px-xs py-0.5 leading-none">
@@ -809,7 +863,7 @@ export default function FlowCanvas({
                   </span>
                   <button
                     className="px-xs py-0.5 text-error/60 hover:text-error hover:bg-error/20 transition-colors leading-none border-l border-error/40 text-xs font-bold"
-                    onClick={(e) => { e.stopPropagation(); onDisconnect(step.id, statusCode); }}
+                    onClick={(e) => { e.stopPropagation(); setHoveredConnection(null); onDisconnect(step.id, statusCode); }}
                     title="Remove connection"
                   >
                     ×

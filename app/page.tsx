@@ -19,6 +19,8 @@ import {
   removeFallbackRoutes,
   removeRouteFromStep,
   setFlowFallbackSteps,
+  confirmStepAdd,
+  confirmFallbackStepAdd,
   FlowWSResponse,
 } from "./store/flowsSlice";
 import { toggleFocusMode, exitFocusMode } from "./store/uiSlice";
@@ -221,39 +223,94 @@ export default function Home() {
     setIsModalOpen(true);
   }
 
-  async function handleSave(data: StepFormData) {
+  function handleSave(data: StepFormData) {
     if (!activeFlowId) return;
 
     if (isFallbackModal) {
       if (editingStep) {
+        const previousStep = editingStep;
+        dispatch(updateFallbackStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
         editStepAPI(activeFlowId, editingStep.id, data, "FALLBACKS", editingStep.position)
-        .then((response: any) => {
-          if(response.success)
-            dispatch(updateFallbackStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
-        });
+          .then((result) => {
+            if (!result.success) {
+              dispatch(updateFallbackStepInFlow({ flowId: activeFlowId, step: previousStep }));
+              showToast("Failed to update fallback step. Changes reverted.", "error");
+            }
+          })
+          .catch(() => {
+            dispatch(updateFallbackStepInFlow({ flowId: activeFlowId, step: previousStep }));
+            showToast("Failed to update fallback step. Changes reverted.", "error");
+          });
       } else {
         const last = fallbackSteps[fallbackSteps.length - 1];
         const position = { x: last ? last.position.x + 440 : 80, y: 800 };
-        const result = await addStepAPI(activeFlowId, data, "FALLBACKS", position);
-        if (result.success) {
-          dispatch(addFallbackStepToFlow({ flowId: activeFlowId, stepData: data, stepId: result.data, position }));
-        }
+        const tempId = `temp_${Date.now()}-${Math.random()}`;
+        dispatch(addFallbackStepToFlow({ flowId: activeFlowId, stepData: data, stepId: tempId, position }));
+        addStepAPI(activeFlowId, data, "FALLBACKS", position)
+          .then((result) => {
+            if (result.success) {
+              if (!result.data) return;
+              if (cancelledTempIds.current.has(tempId)) {
+                cancelledTempIds.current.delete(tempId);
+                deleteFallbackStepAPI(activeFlowId, result.data);
+                return;
+              }
+              dispatch(confirmFallbackStepAdd({ flowId: activeFlowId, tempId, realId: result.data }));
+            } else {
+              cancelledTempIds.current.delete(tempId);
+              dispatch(removeFallbackStepFromFlow({ flowId: activeFlowId, fallbackId: tempId }));
+              showToast("Failed to add fallback step. Please try again.", "error");
+            }
+          })
+          .catch(() => {
+            cancelledTempIds.current.delete(tempId);
+            dispatch(removeFallbackStepFromFlow({ flowId: activeFlowId, fallbackId: tempId }));
+            showToast("Failed to add fallback step. Please try again.", "error");
+          });
       }
     } else {
       if (editingStep) {
-        const result = await editStepAPI(activeFlowId, editingStep.id, data, "STEPS", editingStep.position);
-        if (result.success) {
-          dispatch(updateStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
-        }
+        const previousStep = editingStep;
+        dispatch(updateStepInFlow({ flowId: activeFlowId, step: { ...data, id: editingStep.id, position: editingStep.position } }));
+        editStepAPI(activeFlowId, editingStep.id, data, "STEPS", editingStep.position)
+          .then((result) => {
+            if (!result.success) {
+              dispatch(updateStepInFlow({ flowId: activeFlowId, step: previousStep }));
+              showToast("Failed to update step. Changes reverted.", "error");
+            }
+          })
+          .catch(() => {
+            dispatch(updateStepInFlow({ flowId: activeFlowId, step: previousStep }));
+            showToast("Failed to update step. Changes reverted.", "error");
+          });
       } else {
         const last = steps[steps.length - 1];
         const position = last
           ? { x: last.position.x + 440, y: last.position.y <= 150 ? 300 : 80 }
           : { x: 80, y: 80 };
-        const result = await addStepAPI(activeFlowId, data, "STEPS", position);
-        if (result.success) {
-          dispatch(addStepToFlow({ flowId: activeFlowId, stepData: data, stepId: result.data, position }));
-        }
+        const tempId = `temp_${Date.now()}-${Math.random()}`;
+        dispatch(addStepToFlow({ flowId: activeFlowId, stepData: data, stepId: tempId, position }));
+        addStepAPI(activeFlowId, data, "STEPS", position)
+          .then((result) => {
+            if (result.success) {
+              if (!result.data) return;
+              if (cancelledTempIds.current.has(tempId)) {
+                cancelledTempIds.current.delete(tempId);
+                deleteStepAPI(activeFlowId, result.data);
+                return;
+              }
+              dispatch(confirmStepAdd({ flowId: activeFlowId, tempId, realId: result.data }));
+            } else {
+              cancelledTempIds.current.delete(tempId);
+              dispatch(removeStepFromFlow({ flowId: activeFlowId, stepId: tempId }));
+              showToast("Failed to add step. Please try again.", "error");
+            }
+          })
+          .catch(() => {
+            cancelledTempIds.current.delete(tempId);
+            dispatch(removeStepFromFlow({ flowId: activeFlowId, stepId: tempId }));
+            showToast("Failed to add step. Please try again.", "error");
+          });
       }
     }
 
@@ -263,10 +320,15 @@ export default function Home() {
   }
 
   const reorderDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reorderSnapshotRef = useRef<Step[] | null>(null);
+  const cancelledTempIds = useRef(new Set<string>());
   const [isReorderPending, setIsReorderPending] = useState(false);
 
   async function handleReorderSteps(orderedIds: string[]) {
     if (!activeFlowId) return;
+    if (!reorderSnapshotRef.current) {
+      reorderSnapshotRef.current = [...steps];
+    }
     const stepsWithPositions = orderedIds.map((id, index) => ({
       id,
       position: { x: 80 + index * 440, y: index % 2 === 0 ? 80 : 300 },
@@ -280,7 +342,12 @@ export default function Home() {
       setIsReorderPending(false);
       if (apiResponse.success) {
         showToast("Step order saved successfully.", "success");
+        reorderSnapshotRef.current = null;
       } else {
+        if (reorderSnapshotRef.current) {
+          dispatch(setFlowSteps({ flowId: activeFlowId, steps: reorderSnapshotRef.current }));
+          reorderSnapshotRef.current = null;
+        }
         showToast("Failed to save step order. Please try again.", "error");
       }
     }, 1500);
@@ -288,45 +355,85 @@ export default function Home() {
 
   async function handleDeleteStep(stepId: string) {
     if (!activeFlowId) return;
-    const result = await deleteStepAPI(activeFlowId, stepId);
-    if (result.success) {
+    if (stepId.startsWith('temp_')) {
+      cancelledTempIds.current.add(stepId);
       dispatch(removeStepFromFlow({ flowId: activeFlowId, stepId }));
+      return;
+    }
+    const previousSteps = [...steps];
+    dispatch(removeStepFromFlow({ flowId: activeFlowId, stepId }));
+    try {
+      const result = await deleteStepAPI(activeFlowId, stepId);
+      if (!result.success) {
+        dispatch(setFlowSteps({ flowId: activeFlowId, steps: previousSteps }));
+        showToast("Failed to delete step. Please try again.", "error");
+      }
+    } catch {
+      dispatch(setFlowSteps({ flowId: activeFlowId, steps: previousSteps }));
+      showToast("Failed to delete step. Please try again.", "error");
     }
   }
 
   async function handleDeleteFallbackStep(fallbackId: string) {
     if (!activeFlowId) return;
-    deleteFallbackStepAPI(activeFlowId, fallbackId)
-    .then((response: any) => {
-      if(response.success){
-        dispatch(removeFallbackRoutes({ flowId: activeFlowId, fallbackStepId: fallbackId }));
-        dispatch(removeFallbackStepFromFlow({ flowId: activeFlowId, fallbackId }));
+    if (fallbackId.startsWith('temp_')) {
+      cancelledTempIds.current.add(fallbackId);
+      dispatch(removeFallbackStepFromFlow({ flowId: activeFlowId, fallbackId }));
+      return;
+    }
+    const previousFallbackSteps = [...fallbackSteps];
+    // Snapshot only the steps that reference this fallback so the revert
+    // is targeted and doesn't erase steps added concurrently during the await.
+    const affectedSteps = steps.filter(
+      s => s.routes && Object.values(s.routes).includes(fallbackId)
+    );
+    dispatch(removeFallbackRoutes({ flowId: activeFlowId, fallbackStepId: fallbackId }));
+    dispatch(removeFallbackStepFromFlow({ flowId: activeFlowId, fallbackId }));
+    try {
+      const result = await deleteFallbackStepAPI(activeFlowId, fallbackId);
+      if (!result.success) {
+        dispatch(setFlowFallbackSteps({ flowId: activeFlowId, fallbacks: previousFallbackSteps }));
+        affectedSteps.forEach(step => dispatch(updateStepInFlow({ flowId: activeFlowId, step })));
+        showToast("Failed to delete fallback step. Please try again.", "error");
+      } else {
+        showToast("Fallback step deleted.", "success");
       }
-
-      //Calude throw here a toast message that the fallback deleted/not deleted
-    });
-    
+    } catch {
+      dispatch(setFlowFallbackSteps({ flowId: activeFlowId, fallbacks: previousFallbackSteps }));
+      affectedSteps.forEach(step => dispatch(updateStepInFlow({ flowId: activeFlowId, step })));
+      showToast("Failed to delete fallback step. Please try again.", "error");
+    }
   }
 
   async function handleDisconnect(stepId: string, statusCode: string) {
     if (!activeFlowId) return;
-    dispatch(removeRouteFromStep({ flowId: activeFlowId, stepId, statusCode }));
     const step = steps.find(s => s.id === stepId);
     if (!step) return;
+    const previousStep: Step = { ...step, routes: { ...step.routes } };
+    dispatch(removeRouteFromStep({ flowId: activeFlowId, stepId, statusCode }));
     const updatedRoutes = { ...step.routes };
     delete updatedRoutes[statusCode];
     const { id, position, ...stepData } = { ...step, routes: updatedRoutes };
-    await editStepAPI(activeFlowId, id, stepData, "STEPS", position);
+    const result = await editStepAPI(activeFlowId, id, stepData, "STEPS", position);
+    if (!result.success) {
+      dispatch(updateStepInFlow({ flowId: activeFlowId, step: previousStep }));
+      showToast("Failed to disconnect steps. Please try again.", "error");
+    }
   }
 
   async function handleConnect(fromStepId: string, toFallbackId: string, statusCode: string) {
     if (!activeFlowId) return;
     const step = steps.find(s => s.id === fromStepId);
     if (!step) return;
+    const previousStep: Step = { ...step, routes: { ...step.routes } };
     const updatedStep: Step = { ...step, routes: { ...(step.routes ?? {}), [statusCode]: toFallbackId } };
     dispatch(updateStepInFlow({ flowId: activeFlowId, step: updatedStep }));
     const { id, position, ...stepData } = updatedStep;
-    await editStepAPI(activeFlowId, id, stepData, "STEPS", position);
+    const result = await editStepAPI(activeFlowId, id, stepData, "STEPS", position);
+    if (!result.success) {
+      dispatch(updateStepInFlow({ flowId: activeFlowId, step: previousStep }));
+      showToast("Failed to connect steps. Please try again.", "error");
+    }
   }
 
   const onNewFlowClick = async () => {
@@ -501,6 +608,68 @@ export default function Home() {
             <span className="font-label-caps text-label-caps">Exit Focus</span>
           </button>
         )}
+
+        {/* Focus mode floating toolbar — bottom center */}
+        <div
+          className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-30 flex items-center bg-surface-container border border-outline-variant/80 rounded-2xl shadow-2xl transition-[opacity,transform] duration-200 ease-in-out ${
+            isFocusMode
+              ? "opacity-100 translate-y-0 pointer-events-auto"
+              : "opacity-0 translate-y-3 pointer-events-none"
+          }`}
+        >
+          {/* Request */}
+          <button
+            onClick={openAddModal}
+            className="flex flex-col items-center gap-[3px] px-lg py-sm rounded-l-2xl hover:bg-surface-container-high transition-all group"
+          >
+            <span className="material-symbols-outlined text-secondary text-[20px]">http</span>
+            <span className="font-label-caps text-[9px] tracking-widest uppercase text-on-surface-variant group-hover:text-secondary transition-colors">Request</span>
+          </button>
+
+          <div className="w-px h-8 bg-outline-variant/40 shrink-0" />
+
+          {/* Headers */}
+          <button
+            onClick={() => setIsHeadersModalOpen(true)}
+            className="flex flex-col items-center gap-[3px] px-lg py-sm hover:bg-surface-container-high transition-all group"
+          >
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-secondary transition-colors">tune</span>
+            <span className="font-label-caps text-[9px] tracking-widest uppercase text-on-surface-variant group-hover:text-secondary transition-colors">Headers</span>
+          </button>
+
+          <div className="w-px h-8 bg-outline-variant/40 shrink-0" />
+
+          {/* Variable */}
+          <button
+            onClick={() => setIsVariableModalOpen(true)}
+            className="flex flex-col items-center gap-[3px] px-lg py-sm hover:bg-surface-container-high transition-all group"
+          >
+            <span className="material-symbols-outlined text-primary text-[20px]">abc</span>
+            <span className="font-label-caps text-[9px] tracking-widest uppercase text-on-surface-variant group-hover:text-primary transition-colors">Variable</span>
+          </button>
+
+          <div className="w-px h-8 bg-outline-variant/40 shrink-0" />
+
+          {/* Assert */}
+          <button
+            onClick={() => setIsAssertionModalOpen(true)}
+            className="flex flex-col items-center gap-[3px] px-lg py-sm hover:bg-surface-container-high transition-all group"
+          >
+            <span className="material-symbols-outlined text-tertiary text-[20px]">verified_user</span>
+            <span className="font-label-caps text-[9px] tracking-widest uppercase text-on-surface-variant group-hover:text-tertiary transition-colors">Assert</span>
+          </button>
+
+          <div className="w-px h-8 bg-outline-variant/40 shrink-0" />
+
+          {/* Fallback */}
+          <button
+            onClick={openAddFallbackModal}
+            className="flex flex-col items-center gap-[3px] px-lg py-sm rounded-r-2xl hover:bg-error/5 transition-all group"
+          >
+            <span className="material-symbols-outlined text-error/60 group-hover:text-error text-[20px] transition-colors">alt_route</span>
+            <span className="font-label-caps text-[9px] tracking-widest uppercase text-on-surface-variant group-hover:text-error transition-colors">Fallback</span>
+          </button>
+        </div>
 
         {/* Center Canvas */}
         <FlowCanvas

@@ -238,6 +238,18 @@ const flowsSlice = createSlice({
           position,
         }));
     },
+    confirmStepAdd(state, action: PayloadAction<{ flowId: string; tempId: string; realId: string }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      const step = flow.steps.find((s) => s.id === action.payload.tempId);
+      if (step) step.id = action.payload.realId;
+    },
+    confirmFallbackStepAdd(state, action: PayloadAction<{ flowId: string; tempId: string; realId: string }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      const step = (flow.fallbackSteps ?? []).find((s) => s.id === action.payload.tempId);
+      if (step) step.id = action.payload.realId;
+    },
   },
 });
 
@@ -259,5 +271,7 @@ export const {
   removeFallbackRoutes,
   removeRouteFromStep,
   setFlowFallbackSteps,
+  confirmStepAdd,
+  confirmFallbackStepAdd,
 } = flowsSlice.actions;
 export default flowsSlice.reducer;

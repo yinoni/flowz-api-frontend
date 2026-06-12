@@ -1,10 +1,10 @@
-import api, { APIErrorResponse, APIResponse } from "./apiConfig";
+import api, { APIErrorResponse, APIResponse, toAPIError } from "./apiConfig";
 import type { Step, StepFormData } from "../store/stepsSlice";
-
 
 const API_ROUTE = '/flow';
 
 type StepGroup = "STEPS" | "FALLBACKS";
+
 
 
 
@@ -24,12 +24,7 @@ export const createFlow = async (projectId: string, flowName: string, globalURL:
             msg: 'Flow created successfully'
         };
     } catch (error: any) {
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        };
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -43,12 +38,7 @@ export const editFlow = async (id: string, flowName: string, globalURL: string, 
             msg: 'Flow updated successfully'
         };
     } catch (error: any) {
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        };
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -62,12 +52,7 @@ export const deleteFlow = async (flowId: string): Promise<APIResponse | APIError
             msg: 'Flow deleted successfully'
         };
     } catch (error: any) {
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        };
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -88,12 +73,7 @@ export const addStep = async (
             msg: 'Step added successfully'
         };
     } catch (error: any) {
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        };
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -117,12 +97,7 @@ export const editStep = async (
             msg: 'Step updated successfully'
         };
     } catch (error: any) {
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        };
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -136,12 +111,7 @@ export const deleteStep = async (flowId: string, stepId: string): Promise<APIRes
             msg: 'Step deleted successfully'
         };
     } catch (error: any) {
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        };
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -155,12 +125,7 @@ export const getFlowSteps = async (flowId: string): Promise<APIResponse | APIErr
             msg: 'Steps fetched successfully'
         };
     } catch (error: any) {
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        };
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -179,12 +144,7 @@ export const getProjectFlows = async (projectId: string): Promise<APIResponse | 
         }
     }
     catch(error: any){
-        const errorResponse = {
-            success: false,
-            ...error.response.data,
-        }
-
-        return errorResponse;
+        return toAPIError(error);
     }
 }
 
@@ -201,10 +161,7 @@ export const setGlobals = async (flowId: string, globals: Record<string, any>, f
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            ...error.response.data,
-        }
+        return toAPIError(error);
    
     }
 } 
@@ -215,10 +172,7 @@ export const addFallbackStep = async (flowId: string, stepData: StepFormData): P
         const stepId = typeof response.data === 'string' ? response.data : response.data?.id ?? null;
         return { success: true, data: stepId, msg: 'Fallback step added successfully' };
     } catch (error: any) {
-        return {
-            success: false,
-            ...error.response.data,
-        }
+        return toAPIError(error);
     }
 }
 
@@ -227,10 +181,7 @@ export const deleteFallbackStep = async (flowId: string, fallbackId: string): Pr
         await api.delete(`${API_ROUTE}/fallback/${flowId}`, { params: { fallbackId } });
         return { success: true, data: null, msg: 'Fallback step deleted successfully' };
     } catch (error: any) {
-        return {
-            success: false,
-            ...error.response.data,
-        }
+        return toAPIError(error);
     }
 }
 
@@ -249,10 +200,7 @@ export const reorderSteps = async (
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            ...error.response.data,
-        }
+        return toAPIError(error);
    
     }
 } 

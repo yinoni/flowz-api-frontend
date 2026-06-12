@@ -1,5 +1,4 @@
-import api, { APIErrorResponse, APIResponse } from "./apiConfig";
-
+import api, { APIErrorResponse, APIResponse, toAPIError } from "./apiConfig";
 
 const API_ROUTE = '/execute';
 
@@ -15,10 +14,7 @@ export const executeFlow = async (executionId: string): Promise<APIResponse | AP
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            ...error.response.data
-        }
+        return toAPIError(error);
     }
 }
 
@@ -39,9 +35,6 @@ export const getExecutionID = async (flowId: string): Promise<APIResponse | APIE
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            ...error.response.data
-        }
+        return toAPIError(error);
     }
 }

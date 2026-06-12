@@ -1,7 +1,7 @@
 import { log } from 'console';
 import { SignUpRequest } from '../store/userSlice';
 import { AuthErrorResponse, AuthResponse } from '../types';
-import api from './apiConfig';
+import api, {toAPIError} from './apiConfig';
 
 
 const API_ROUTE = '/auth'
@@ -20,10 +20,7 @@ export const login = async (email: string, password: string): Promise<AuthRespon
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            msg: error.response.data.message
-        }
+        return toAPIError(error);
     }  
 }
 
@@ -38,10 +35,7 @@ export const signup = async (request: SignUpRequest): Promise<AuthResponse | Aut
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            msg: error.response.data.message
-        }
+        return toAPIError(error);
     }
 }
 
@@ -59,10 +53,7 @@ export const googleLogin = async (token: any): Promise<AuthResponse | AuthErrorR
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            msg: error.response.data.message
-        }
+        return toAPIError(error);
     }
 }
 
@@ -79,10 +70,7 @@ export const validateCode = async (code: string): Promise<AuthResponse | AuthErr
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            msg: error.response.data.message
-        }
+        return toAPIError(error);
     }
 }
 
@@ -97,10 +85,7 @@ export const resendCode = async (): Promise<AuthResponse | AuthErrorResponse> =>
         }
     }
     catch(error: any){
-        return {
-            success: false,
-            msg: error.response.data.message
-        }
+        return toAPIError(error);
     }
 }
 
@@ -115,10 +100,7 @@ export const refresh = async (): Promise<AuthResponse | AuthErrorResponse> => {
         }
     }
     catch(error: any){        
-        return {
-            success: false,
-            msg: error.response.data.message
-        }
+        return toAPIError(error);
     }
 }
 
@@ -133,9 +115,6 @@ export const logout = async (): Promise<AuthResponse | AuthErrorResponse> => {
         }
     }
     catch(error: any){        
-        return {
-            success: false,
-            msg: error.response.data.message
-        }
+        return toAPIError(error);
     }
 }

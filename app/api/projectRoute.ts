@@ -1,5 +1,4 @@
-import api, { APIErrorResponse, APIResponse } from "./apiConfig";
-
+import api, { APIErrorResponse, APIResponse, toAPIError } from "./apiConfig";
 
 const API_ROUTE = "/project";
 
@@ -14,12 +13,7 @@ export const createProject = async (projectName: string): Promise<APIResponse | 
             msg: 'Project created successfully'
         };
     } catch (error: any) {
-        let errorBody: APIErrorResponse = {
-            success: false,
-            ...error.response.data
-        };
-
-        return errorBody;
+        return toAPIError(error);
     }
 }
 
@@ -37,7 +31,7 @@ export const deleteProject = async (projectId: string): Promise<APIResponse | AP
         await api.delete(`${API_ROUTE}/${projectId}`);
         return { success: true, data: null, msg: 'Project deleted successfully' };
     } catch (error: any) {
-        return { success: false, ...error.response.data };
+        return toAPIError(error);
     }
 }
 
@@ -52,14 +46,6 @@ export const getUserProjects = async (): Promise<APIResponse | APIErrorResponse>
         };
     }
     catch(error: any){
-        console.log('The error is ===> ', error.response);
-        
-    
-        let errorBody: APIErrorResponse = {
-            success: false,
-            ...error.response.data
-        };
-
-        return errorBody;
+        return toAPIError(error);
     }
 }

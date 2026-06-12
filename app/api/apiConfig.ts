@@ -20,6 +20,13 @@ export interface APIErrorResponse{
     timestamp: any 
 }
 
+export function toAPIError(error: any) {
+    return {
+        success: false as const,
+        ...(error.response?.data ?? { message: error.message ?? "Network error. Please check your connection." }),
+    };
+}
+
 
 const api = axios.create({
     baseURL: API_URL,
