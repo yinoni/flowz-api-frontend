@@ -110,7 +110,7 @@ function StepNode({
             onClick={(e) => e.stopPropagation()}
             title="Drag to reorder"
           >
-            <span className="material-symbols-outlined text-sm select-none">drag_indicator</span>
+            <span className="material-symbols-outlined text-sm select-none">open_with</span>
           </div>
           <span className="material-symbols-outlined text-secondary text-sm">http</span>
           <span className="font-label-caps text-label-caps text-on-surface">
@@ -357,6 +357,7 @@ interface FlowCanvasProps {
   onStepDelete: (stepId: string) => void;
   onFallbackStepDelete: (stepId: string) => void;
   onReorderSteps: (orderedIds: string[]) => void;
+  onAddAfter: (afterStepId: string) => void;
   onConnect: (fromStepId: string, toFallbackId: string, statusCode: string) => void;
   onDisconnect: (stepId: string, statusCode: string) => void;
   stepResults?: Record<string, boolean>;
@@ -371,6 +372,7 @@ export default function FlowCanvas({
   onStepDelete,
   onFallbackStepDelete,
   onReorderSteps,
+  onAddAfter,
   onConnect,
   onDisconnect,
   stepResults,
@@ -381,6 +383,7 @@ export default function FlowCanvas({
   const panStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
   const dragRef = useRef<DragState | null>(null);
+  const didDragRef = useRef(false);
   const connectDragRef = useRef<ConnectDrag | null>(null);
   const onReorderRef = useRef(onReorderSteps);
   onReorderRef.current = onReorderSteps;
@@ -406,9 +409,11 @@ export default function FlowCanvas({
   function startStepDrag(stepId: string, clientX: number) {
     const initialOrder = steps.map(s => s.id);
     dragRef.current = { stepId, startClientX: clientX, currentClientX: clientX, order: initialOrder, initialOrder };
+    didDragRef.current = false;
     forceUpdate();
 
     function onPointerMove(e: PointerEvent) {
+      didDragRef.current = true;
       const drag = dragRef.current;
       if (!drag) return;
       const dx = e.clientX - drag.startClientX;
@@ -786,7 +791,7 @@ export default function FlowCanvas({
               visualX={x}
               visualY={y}
               isDragging={drag?.stepId === step.id}
-              onClick={() => onStepClick(step)}
+              onClick={() => { if (didDragRef.current) { didDragRef.current = false; return; } onStepClick(step); }}
               onDelete={() => { setHoveredNodeId(null); setHoveredConnection(null); onStepDelete(step.id); }}
               onDragHandlePointerDown={(e) => {
                 e.stopPropagation();
@@ -798,6 +803,30 @@ export default function FlowCanvas({
               stepResult={stepResults?.[step.id]}
               dimmed={dimmed}
             />
+          );
+        })}
+
+        {/* Insert-after buttons — shown between consecutive steps when not dragging */}
+        {!drag && connectionOrder.slice(0, -1).map((step, i) => {
+          const midX = 400 + i * STEP_SPACING + (STEP_SPACING - 320) / 2;
+          const y1 = (i % 2 === 0 ? 80 : 300) + 80;
+          const y2 = ((i + 1) % 2 === 0 ? 80 : 300) + 80;
+          const midY = (y1 + y2) / 2;
+          return (
+            <div
+              key={`add-after-${step.id}`}
+              className="absolute z-20"
+              style={{ left: midX - 14, top: midY - 14 }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onAddAfter(step.id); }}
+            >
+              <button
+                className="w-7 h-7 rounded-md bg-surface-container-high border border-primary/60 text-primary hover:bg-primary hover:border-primary hover:text-white transition-all shadow-[0_0_8px_rgba(77,142,255,0.25)] hover:shadow-[0_0_12px_rgba(77,142,255,0.5)] flex items-center justify-center cursor-pointer"
+                title="Insert step here"
+              >
+                <span className="material-symbols-outlined text-[12px] select-none leading-none">add</span>
+              </button>
+            </div>
           );
         })}
 

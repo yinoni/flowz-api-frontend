@@ -185,13 +185,15 @@ export const deleteFallbackStep = async (flowId: string, fallbackId: string): Pr
     }
 }
 
-export const reorderSteps = async (
+export const syncSteps = async (
     flowId: string,
+    stepData: StepFormData | null,
     steps: { id: string; position: { x: number; y: number } }[]
 ): Promise<APIResponse | APIErrorResponse> => {
     try{
-        const apiResponse = await api.patch(`${API_ROUTE}/steps/${flowId}/reorder`, {
-            steps
+        const apiResponse = await api.patch(`${API_ROUTE}/steps/${flowId}/sync`, {
+            step: stepData,
+            reorderSteps: steps
         });
         return {
             success: true,
@@ -201,6 +203,6 @@ export const reorderSteps = async (
     }
     catch(error: any){
         return toAPIError(error);
-   
+
     }
-} 
+}

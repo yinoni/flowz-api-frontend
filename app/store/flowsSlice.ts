@@ -250,6 +250,24 @@ const flowsSlice = createSlice({
       const step = (flow.fallbackSteps ?? []).find((s) => s.id === action.payload.tempId);
       if (step) step.id = action.payload.realId;
     },
+    insertStepAfterInFlow(state, action: PayloadAction<{ flowId: string; afterStepId: string; stepData: StepFormData; stepId: string }>) {
+      const flow = state.flows.find((f) => f.id === action.payload.flowId);
+      if (!flow) return;
+      const afterIndex = flow.steps.findIndex(s => s.id === action.payload.afterStepId);
+      if (afterIndex === -1) return;
+      const insertIndex = afterIndex + 1;
+      flow.steps.splice(insertIndex, 0, {
+        ...action.payload.stepData,
+        routes: action.payload.stepData.routes ?? {},
+        id: action.payload.stepId,
+        position: { x: 80 + insertIndex * 440, y: insertIndex % 2 === 0 ? 80 : 300 },
+      });
+      // Recalculate all positions to keep the snake layout consistent
+      flow.steps.forEach((step, idx) => {
+        step.position = { x: 80 + idx * 440, y: idx % 2 === 0 ? 80 : 300 };
+      });
+      flow.lastModified = todayLabel();
+    },
   },
 });
 
@@ -273,5 +291,6 @@ export const {
   setFlowFallbackSteps,
   confirmStepAdd,
   confirmFallbackStepAdd,
+  insertStepAfterInFlow,
 } = flowsSlice.actions;
 export default flowsSlice.reducer;

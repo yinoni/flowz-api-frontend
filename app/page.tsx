@@ -21,6 +21,7 @@ import {
   setFlowFallbackSteps,
   confirmStepAdd,
   confirmFallbackStepAdd,
+  insertStepAfterInFlow,
   FlowWSResponse,
 } from "./store/flowsSlice";
 import { toggleFocusMode, exitFocusMode } from "./store/uiSlice";
@@ -34,11 +35,11 @@ import {
   deleteStep as deleteStepAPI,
   editStep as editStepAPI,
   getFlowSteps,
-  deleteFallbackStep as deleteFallbackStepAPI
+  deleteFallbackStep as deleteFallbackStepAPI,
+  syncSteps as syncStepsAPI,
 } from "./api/flowRoute";
 import { executeFlow, getExecutionID } from "./api/flowExecutionAPI";
 import { useWebSocket } from "./components/WebSocketProvider";
-import { reorderSteps as reorderStepsAPI } from "./api/flowRoute";
 import { useToast } from "./components/ToastProvider";
 
 type LogStatus =
@@ -194,6 +195,7 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<Step | null>(null);
   const [isFallbackModal, setIsFallbackModal] = useState(false);
+  const [insertAfterStepId, setInsertAfterStepId] = useState<string | null>(null);
   const [isVariableModalOpen, setIsVariableModalOpen] = useState(false);
   const [isAssertionModalOpen, setIsAssertionModalOpen] = useState(false);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
@@ -208,6 +210,13 @@ export default function Home() {
   function openEditModal(step: Step) {
     setEditingStep(step);
     setIsFallbackModal(false);
+    setIsModalOpen(true);
+  }
+
+  function openAddAfterModal(afterStepId: string) {
+    setEditingStep(null);
+    setIsFallbackModal(false);
+    setInsertAfterStepId(afterStepId);
     setIsModalOpen(true);
   }
 
@@ -283,6 +292,36 @@ export default function Home() {
             dispatch(updateStepInFlow({ flowId: activeFlowId, step: previousStep }));
             showToast("Failed to update step. Changes reverted.", "error");
           });
+      } else if (insertAfterStepId) {
+        const afterStepId = insertAfterStepId;
+        setInsertAfterStepId(null);
+        const afterIndex = steps.findIndex(s => s.id === afterStepId);
+        if (afterIndex === -1) return;
+        const insertIndex = afterIndex + 1;
+        const newStepId = crypto.randomUUID();
+        const previousSteps = [...steps];
+        dispatch(insertStepAfterInFlow({ flowId: activeFlowId, afterStepId, stepData: data, stepId: newStepId }));
+        const reorderList = [
+          ...steps.slice(0, insertIndex).map((s, idx) => ({
+            id: s.id,
+            position: { x: 80 + idx * 440, y: idx % 2 === 0 ? 80 : 300 },
+          })),
+          { id: newStepId, position: { x: 80 + insertIndex * 440, y: insertIndex % 2 === 0 ? 80 : 300 } },
+          ...steps.slice(insertIndex).map((s, i) => {
+            const newIdx = insertIndex + 1 + i;
+            return { id: s.id, position: { x: 80 + newIdx * 440, y: newIdx % 2 === 0 ? 80 : 300 } };
+          }),
+        ];
+        if (addAfterDebounceRef.current) clearTimeout(addAfterDebounceRef.current);
+        setIsAddAfterPending(true);
+        addAfterDebounceRef.current = setTimeout(async () => {
+          const result = await syncStepsAPI(activeFlowId, data, reorderList).catch(() => null);
+          setIsAddAfterPending(false);
+          if (!result || !result.success) {
+            dispatch(setFlowSteps({ flowId: activeFlowId, steps: previousSteps }));
+            showToast("Failed to insert step. Please try again.", "error");
+          }
+        }, 1000);
       } else {
         const last = steps[steps.length - 1];
         const position = last
@@ -321,8 +360,10 @@ export default function Home() {
 
   const reorderDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reorderSnapshotRef = useRef<Step[] | null>(null);
+  const addAfterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelledTempIds = useRef(new Set<string>());
   const [isReorderPending, setIsReorderPending] = useState(false);
+  const [isAddAfterPending, setIsAddAfterPending] = useState(false);
 
   async function handleReorderSteps(orderedIds: string[]) {
     if (!activeFlowId) return;
@@ -338,7 +379,7 @@ export default function Home() {
     setIsReorderPending(true);
     if (reorderDebounceRef.current) clearTimeout(reorderDebounceRef.current);
     reorderDebounceRef.current = setTimeout(async () => {
-      const apiResponse = await reorderStepsAPI(activeFlowId, stepsWithPositions);
+      const apiResponse = await syncStepsAPI(activeFlowId, null, stepsWithPositions);
       setIsReorderPending(false);
       if (apiResponse.success) {
         showToast("Step order saved successfully.", "success");
@@ -680,6 +721,7 @@ export default function Home() {
           onStepDelete={handleDeleteStep}
           onFallbackStepDelete={handleDeleteFallbackStep}
           onReorderSteps={handleReorderSteps}
+          onAddAfter={openAddAfterModal}
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           stepResults={stepResults}
@@ -800,7 +842,7 @@ export default function Home() {
 
       <NewRequestModal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setEditingStep(null); setIsFallbackModal(false); }}
+        onClose={() => { setIsModalOpen(false); setEditingStep(null); setIsFallbackModal(false); setInsertAfterStepId(null); }}
         onSave={handleSave}
         initialStep={editingStep}
         defaultUrl={activeFlow.globalURL || undefined}
@@ -849,13 +891,13 @@ export default function Home() {
             </button>
             <button
               onClick={onStartClick}
-              disabled={isReorderPending}
+              disabled={isReorderPending || isAddAfterPending}
               className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs transition-all font-bold font-code-sm text-code-sm disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 disabled:hover:opacity-50"
             >
-              <span className={`material-symbols-outlined text-sm ${isReorderPending ? "animate-spin" : ""}`}>
-                {isReorderPending ? "progress_activity" : "play_arrow"}
+              <span className={`material-symbols-outlined text-sm ${(isReorderPending || isAddAfterPending) ? "animate-spin" : ""}`}>
+                {(isReorderPending || isAddAfterPending) ? "progress_activity" : "play_arrow"}
               </span>
-              {isReorderPending ? "Saving..." : "Start"}
+              {(isReorderPending || isAddAfterPending) ? "Saving..." : "Start"}
             </button>
           </div>
         </div>
