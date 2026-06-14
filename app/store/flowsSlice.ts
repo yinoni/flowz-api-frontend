@@ -221,6 +221,9 @@ const flowsSlice = createSlice({
       const flow = state.flows.find((f) => f.id === action.payload.flowId);
       if (flow) {
         flow.steps = flow.steps.filter((s) => s.id !== action.payload.stepId);
+        flow.steps.forEach((step, idx) => {
+          step.position = { x: 80 + idx * 440, y: idx % 2 === 0 ? 80 : 300 };
+        });
         flow.lastModified = todayLabel();
       }
     },

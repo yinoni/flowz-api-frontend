@@ -49,6 +49,7 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use((response) => {
     return response;
+
 }, async (error) => {
     const status = error.status;
     const originalRequest = error.config;
