@@ -14,8 +14,9 @@ import { getUserProjects } from "../api/projectRoute";
 import { setProjects } from "../store/projectsSlice";
 import { getProjectFlows } from "../api/flowRoute";
 import { setFlows } from "../store/flowsSlice";
-import { GoogleLogin } from "@react-oauth/google";
 import Image from "next/image";
+import CustomGoogleButton from "../components/CustomGoogleButton";
+import type { TokenResponse } from "@react-oauth/google";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -111,20 +112,23 @@ export default function LoginPage() {
     router.push("/flows");
   }
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    const idToken = credentialResponse.credential;
-
-    if (!idToken) {
-      console.error("Google authentication failed: No token returned");
+  const handleGoogleSuccess = async (credentialResponse: Omit<TokenResponse, 'error' | 'error_description' | 'error_uri'>) => {
+    if (!credentialResponse?.access_token) {
+      setError("Google authentication failed. Please try again.");
       return;
     }
 
-    const apiResponse = await googleLoginEndpoint(idToken);
-    postAuth(apiResponse);
+    try {
+      const apiResponse = await googleLoginEndpoint(credentialResponse.access_token);
+      await postAuth(apiResponse);
+    } catch (e: any) {
+      const errorMsg = e.response?.data?.message ?? e.response?.data ?? "Google login failed. Try again later";
+      handleGoogleError(errorMsg);
+    }
   }
 
-  const handleGoogleError = async () => {
-    console.error('Google Login Failed');
+  const handleGoogleError = (error: string) => {
+    setError(error);
   }
 
   return (
@@ -239,11 +243,9 @@ export default function LoginPage() {
             </div>
 
             {/* Google */}
-            <GoogleLogin
+            <CustomGoogleButton
               onSuccess={handleGoogleSuccess}
               onError={handleGoogleError}
-              theme="filled_blue"
-              shape="pill"
             />
           </div>
 

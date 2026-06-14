@@ -1,4 +1,3 @@
-import { log } from 'console';
 import { SignUpRequest } from '../store/userSlice';
 import { AuthErrorResponse, AuthResponse } from '../types';
 import api, {toAPIError} from './apiConfig';
@@ -39,11 +38,11 @@ export const signup = async (request: SignUpRequest): Promise<AuthResponse | Aut
     }
 }
 
-export const googleLogin = async (token: any): Promise<AuthResponse | AuthErrorResponse> => {
+export const googleLogin = async (access_token: string): Promise<AuthResponse | AuthErrorResponse> => {
     
     try{
         const response = await api.post(`${API_ROUTE}/google`, {
-            token: token
+            access_token
         });        
 
         return {
@@ -76,7 +75,7 @@ export const validateCode = async (code: string): Promise<AuthResponse | AuthErr
 
 export const resendCode = async (): Promise<AuthResponse | AuthErrorResponse> => {
     try{
-        const response = await api.post(`${API_ROUTE}/resend-code`);
+        await api.post(`${API_ROUTE}/resend-code`);
 
         return {
             success: true,

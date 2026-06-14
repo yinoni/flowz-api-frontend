@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { store } from '@/app/store/store';
-import { log } from 'console';
 import { logout, setToken } from '../store/userSlice';
 import { refresh as refreshAPI } from './authAPI';
 import { API_URL } from '../utils/consts';
@@ -72,7 +71,6 @@ api.interceptors.response.use((response) => {
                     window.location.href = `/login?callbackUrl=${encodeURIComponent(currentPath)}`;
                 }   
             } else {
-                // אם הוא כבר בלוגין, אנחנו לא עושים כלום (מונע רענון בלתי פוסק של העמוד)
                 console.warn("API returned 401/403 while already on the login page.");
             }
        }

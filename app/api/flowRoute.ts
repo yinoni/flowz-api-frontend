@@ -1,5 +1,5 @@
 import api, { APIErrorResponse, APIResponse, toAPIError } from "./apiConfig";
-import type { Step, StepFormData } from "../store/stepsSlice";
+import type { StepFormData } from "../store/stepsSlice";
 
 const API_ROUTE = '/flow';
 
