@@ -6,7 +6,7 @@ import Image from "next/image";
 
 const NAV_ITEMS = [
   { icon: "account_tree", label: "My Flows", href: "/flows" },
-  { icon: "add_box", label: "New Flow", href: "/" },
+  { icon: "edit_square", label: "Flow Editor", href: "/" },
   { icon: "settings", label: "Settings", href: "/settings" },
 ] as const;
 

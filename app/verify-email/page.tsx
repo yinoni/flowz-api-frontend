@@ -86,7 +86,7 @@ function VerifyEmailContent() {
     inputRefs.current[0]?.focus();
     const apiResponse = await resendCode();
     if (!apiResponse.success) {
-      setError(apiResponse.msg ?? "Failed to resend code. Please try again.");
+      setError(apiResponse.message ?? "Failed to resend code. Please try again.");
     }
   }
 
@@ -120,7 +120,7 @@ function VerifyEmailContent() {
 
       router.push("/flows");
     } else {
-      setError(apiResponse.msg ?? "Invalid verification code. Please try again.");
+      setError(apiResponse.message ?? "Invalid verification code. Please try again.");
       setIsSubmitting(false);
     }
   }

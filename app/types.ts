@@ -5,6 +5,6 @@ export interface AuthResponse{
 }
 
 export interface AuthErrorResponse{
-    success: false, 
-    msg: string
+    success: false,
+    message: string
 }

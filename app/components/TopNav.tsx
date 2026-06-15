@@ -12,15 +12,16 @@ export function TopNav() {
 
   return (
     <header className="bg-surface-container-highest flex justify-between items-center w-full px-lg h-16 border-b border-outline-variant shrink-0 z-30">
-      <div className="flex items-center gap-xl">
-          <Image
-              src={require('../assets/logo_transparent.png')}
-              alt="FlowZ"
-              width={40}
-              height={40}
-              className="rounded-xl"
-              priority
-            />
+      <div className="flex items-center gap-md">
+        <Image
+          src={require('../assets/logo_transparent.png')}
+          alt="FlowZ"
+          width={40}
+          height={40}
+          className="rounded-xl"
+          priority
+        />
+        <div className="w-px h-8 bg-outline-variant/50 shrink-0 mx-xs" />
         <ProjectDropdown />
       </div>
       <button

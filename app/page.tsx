@@ -27,7 +27,8 @@ import {
 import { toggleFocusMode, exitFocusMode } from "./store/uiSlice";
 import type { Step, StepFormData } from "./store/stepsSlice";
 import NewRequestModal from "./components/NewRequestModal";
-import FlowCanvas from "./components/FlowCanvas";
+import FlowCanvas, { type FlowCanvasHandle } from "./components/FlowCanvas";
+import { getHttpMethodColor } from "./utils/utils";
 import GlobalKVModal from "./components/GlobalKVModal";
 import {
   addStep as addStepAPI,
@@ -169,6 +170,10 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [dispatch]);
 
+  useEffect(() => {
+    if (!isFocusMode) setIsFocusNavOpen(false);
+  }, [isFocusMode]);
+
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [stepResults, setStepResults] = useState<Record<string, boolean>>({});
 
@@ -200,6 +205,8 @@ export default function Home() {
   const [isAssertionModalOpen, setIsAssertionModalOpen] = useState(false);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
   const [isTerminalExpanded, setIsTerminalExpanded] = useState(false);
+  const [isFocusNavOpen, setIsFocusNavOpen] = useState(false);
+  const flowCanvasRef = useRef<FlowCanvasHandle>(null);
 
   function openAddModal() {
     setEditingStep(null);
@@ -484,12 +491,11 @@ export default function Home() {
         dispatch(createFlow(newFlowResponse.data));
       }
       else{
-        //Throw here toast message with the error details
-        console.warn("Error while creating the flow! ===> ", newFlowResponse);
+        showToast(newFlowResponse.message ?? "Failed to create flow. Please try again.", "error");
       }
     }
     else{
-      console.warn("Warning! The active project ID is null!")
+      showToast("Please select or create a project before creating a flow.", "info");
     }
   }
 
@@ -508,7 +514,9 @@ export default function Home() {
       if(newExecutionId.success){
         dispatch(setExecutionId(newExecutionId.data));
         startWebSocketSubscription(newExecutionId.data);
-      }  
+      } else {
+        showToast(newExecutionId.message ?? "Failed to start execution. Please try again.", "error");
+      }
     }
     else{
       startWebSocketSubscription(executionId);
@@ -602,8 +610,16 @@ export default function Home() {
             </div>
             <h2 className="font-headline-lg text-headline-lg text-on-surface mb-xs">No Flow Selected</h2>
             <p className="text-on-surface-variant font-body-md mb-xl">
-              Open an existing flow from My Flows, or create a new one to start building.
+              {activeProjectId
+                ? "Open an existing flow from My Flows, or create a new one to start building."
+                : "Select or create a project first, then open or create a flow."}
             </p>
+            {!activeProjectId && (
+              <div className="mb-lg flex items-center gap-sm px-md py-sm rounded-lg bg-primary/5 border border-primary/30 text-primary font-body-sm">
+                <span className="material-symbols-outlined text-sm">arrow_upward</span>
+                Use the <strong className="mx-1">Project</strong> selector in the top bar to get started
+              </div>
+            )}
             <div className="flex gap-md justify-center">
               <button
                 onClick={() => router.push("/flows")}
@@ -614,7 +630,8 @@ export default function Home() {
               </button>
               <button
                 onClick={onNewFlowClick}
-                className="flex items-center gap-sm px-lg py-sm rounded-lg bg-primary text-on-primary-fixed font-bold hover:opacity-90 transition-all active:scale-95"
+                title={!activeProjectId ? "Select or create a project first" : undefined}
+                className={`flex items-center gap-sm px-lg py-sm rounded-lg bg-primary text-on-primary-fixed font-bold transition-all ${activeProjectId ? "hover:opacity-90 active:scale-95" : "opacity-40 cursor-not-allowed"}`}
               >
                 <span className="material-symbols-outlined">add_circle</span>
                 New Flow
@@ -642,7 +659,7 @@ export default function Home() {
         {isFocusMode && (
           <button
             onClick={() => dispatch(exitFocusMode())}
-            className="absolute top-3 right-3 z-30 flex items-center gap-xs px-sm py-xs rounded-lg bg-surface-container border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary transition-all shadow-lg text-sm font-body-md opacity-40 hover:opacity-100"
+            className="absolute top-3 right-3 z-30 flex items-center gap-xs px-sm py-xs rounded-lg bg-surface-container border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary transition-all shadow-lg text-sm font-body-md"
             title="Exit focus mode (Escape or \\)"
           >
             <span className="material-symbols-outlined text-sm">fullscreen_exit</span>
@@ -714,6 +731,7 @@ export default function Home() {
 
         {/* Center Canvas */}
         <FlowCanvas
+          ref={flowCanvasRef}
           steps={steps}
           fallbackSteps={fallbackSteps}
           onStepClick={openEditModal}
@@ -732,13 +750,13 @@ export default function Home() {
         <aside className={`bg-surface-container-low border-l border-outline-variant flex flex-col h-full py-md px-sm shrink-0 z-20 overflow-hidden transition-[width,opacity] duration-200 ease-in-out ${
           isFocusMode ? "w-0 opacity-0" : "w-inspector-width opacity-100"
         }`}>
-          <div className="mb-lg px-sm">
+          <div className="shrink-0 mb-lg px-sm">
             <div className="font-headline-md text-headline-md text-secondary">Step Palette</div>
             <div className="text-on-surface-variant text-[10px] uppercase tracking-widest opacity-70">
               Click to add
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-sm">
+          <div className="shrink-0 grid grid-cols-2 gap-sm">
             {(
               [
                 { icon: "http", label: "Request", color: "secondary" },
@@ -789,7 +807,7 @@ export default function Home() {
             })}
           </div>
           {/* Fallback Step button */}
-          <div className="mt-md pt-md border-t border-outline-variant/40">
+          <div className="shrink-0 mt-md pt-md border-t border-outline-variant/40">
             <div className="font-label-caps text-label-caps text-outline mb-sm uppercase">Fallback</div>
             <div
               onClick={openAddFallbackModal}
@@ -805,38 +823,55 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-lg px-sm border-t border-outline-variant pt-lg">
-            <div className="font-label-caps text-label-caps text-outline mb-md uppercase">
-              Flow Inspector
+          {/* Step Navigator — normal mode only */}
+          <div className="flex-1 min-h-0 flex flex-col mt-lg border-t border-outline-variant pt-lg overflow-hidden">
+            <div className="shrink-0 font-label-caps text-label-caps text-outline mb-sm uppercase px-sm">
+              Navigator
             </div>
-            <div className="bg-background rounded p-sm space-y-md">
-              <div>
-                <label className="text-[9px] text-outline uppercase block mb-1">Flow Name</label>
-                <div className="w-full bg-surface-container-high border border-outline-variant rounded px-xs py-1 font-code-sm text-code-sm text-primary truncate">
-                  {activeFlow.flowName}
-                </div>
-              </div>
-              {activeFlow.globalURL && (
-                <div>
-                  <label className="text-[9px] text-outline uppercase block mb-1">Base URL</label>
-                  <div className="font-code-sm text-code-sm text-on-surface-variant truncate">
-                    {activeFlow.globalURL}
-                  </div>
-                </div>
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-px px-sm">
+              {steps.length === 0 ? (
+                <p className="text-outline font-body-sm text-body-sm italic text-center py-sm">No steps yet</p>
+              ) : (
+                steps.map((step, i) => {
+                  const { text, bg } = getHttpMethodColor(step.httpMethod);
+                  return (
+                    <button
+                      key={step.id}
+                      onClick={() => { flowCanvasRef.current?.scrollToStep(step.id); flowCanvasRef.current?.focusNode(step.id); }}
+                      className="w-full flex items-center gap-xs px-xs py-xs rounded text-left hover:bg-surface-container-high transition-colors group"
+                    >
+                      <span className="font-label-caps text-[9px] text-outline w-4 shrink-0">{i + 1}</span>
+                      <span className="text-on-surface-variant truncate flex-1 group-hover:text-on-surface text-xs">{step.title || "Untitled"}</span>
+                      <span className={`${bg} ${text} px-xs rounded text-[8px] font-bold tracking-widest shrink-0`}>{step.httpMethod || "GET"}</span>
+                    </button>
+                  );
+                })
               )}
-              <div>
-                <label className="text-[9px] text-outline uppercase block mb-1">Steps</label>
-                <div className="font-code-md text-code-md text-secondary">{steps.length}</div>
-              </div>
-              <button
-                onClick={() => router.push("/flows")}
-                className="w-full flex items-center justify-center gap-xs px-md py-xs rounded border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary transition-all font-body-sm text-body-sm mt-sm"
-              >
-                <span className="material-symbols-outlined text-sm">arrow_back</span>
-                Back to My Flows
-              </button>
+              {fallbackSteps.length > 0 && (
+                <>
+                  <div className="text-[9px] text-error/50 uppercase tracking-widest pt-xs pb-px border-t border-outline-variant/50 flex items-center gap-xs mt-xs">
+                    <span className="material-symbols-outlined text-xs">alt_route</span>
+                    Fallbacks
+                  </div>
+                  {fallbackSteps.map((fb) => {
+                    const { text, bg } = getHttpMethodColor(fb.httpMethod);
+                    return (
+                      <button
+                        key={fb.id}
+                        onClick={() => { flowCanvasRef.current?.scrollToFallback(fb.id); flowCanvasRef.current?.focusNode(fb.id); }}
+                        className="w-full flex items-center gap-xs px-xs py-xs rounded text-left hover:bg-error/5 transition-colors group"
+                      >
+                        <span className="material-symbols-outlined text-error/50 text-xs shrink-0">alt_route</span>
+                        <span className="text-on-surface-variant truncate flex-1 group-hover:text-error text-xs">{fb.title || "Fallback"}</span>
+                        <span className={`${bg} ${text} px-xs rounded text-[8px] font-bold tracking-widest shrink-0`}>{fb.httpMethod || "GET"}</span>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </div>
+
         </aside>
       </div>
 
@@ -889,9 +924,74 @@ export default function Home() {
                 {isTerminalExpanded ? "expand_more" : "expand_less"}
               </span>
             </button>
+
+            {/* Step Navigator */}
+            {(steps.length > 0 || fallbackSteps.length > 0) && (
+              <div className="relative">
+                {isFocusNavOpen && (
+                  <div className="fixed inset-0 z-40" onClick={() => setIsFocusNavOpen(false)} />
+                )}
+                <div className="relative z-50">
+                  <button
+                    onClick={() => setIsFocusNavOpen(v => !v)}
+                    className="flex items-center gap-xs px-sm py-xs rounded border border-outline-variant/60 text-on-surface-variant hover:border-primary hover:text-primary transition-all font-code-sm text-code-sm"
+                    title="Step navigator"
+                  >
+                    <span className="material-symbols-outlined text-sm">format_list_bulleted</span>
+                    <span>{steps.length + fallbackSteps.length}</span>
+                  </button>
+                  {isFocusNavOpen && (
+                    <div className="absolute bottom-full right-0 mb-xs w-56 bg-surface-container border border-outline-variant rounded-xl shadow-2xl overflow-hidden">
+                      <div className="px-sm py-xs border-b border-outline-variant">
+                        <span className="font-label-caps text-[9px] text-outline uppercase tracking-widest">Navigator</span>
+                      </div>
+                      <div className="overflow-y-auto max-h-64 p-xs space-y-px">
+                        {steps.map((step, i) => {
+                          const { text, bg } = getHttpMethodColor(step.httpMethod);
+                          return (
+                            <button
+                              key={step.id}
+                              onClick={() => { flowCanvasRef.current?.scrollToStep(step.id); flowCanvasRef.current?.focusNode(step.id); setIsFocusNavOpen(false); }}
+                              className="w-full flex items-center gap-xs px-sm py-xs rounded text-left hover:bg-surface-container-high transition-colors group"
+                            >
+                              <span className="font-label-caps text-[9px] text-outline w-4 shrink-0">{i + 1}</span>
+                              <span className="text-on-surface-variant truncate flex-1 group-hover:text-on-surface text-xs">{step.title || "Untitled"}</span>
+                              <span className={`${bg} ${text} px-xs rounded text-[8px] font-bold tracking-widest shrink-0`}>{step.httpMethod || "GET"}</span>
+                            </button>
+                          );
+                        })}
+                        {fallbackSteps.length > 0 && (
+                          <>
+                            <div className="text-[9px] text-error/50 uppercase tracking-widest pt-xs pb-px border-t border-outline-variant/50 flex items-center gap-xs px-sm mt-xs">
+                              <span className="material-symbols-outlined text-xs">alt_route</span>
+                              Fallbacks
+                            </div>
+                            {fallbackSteps.map((fb) => {
+                              const { text, bg } = getHttpMethodColor(fb.httpMethod);
+                              return (
+                                <button
+                                  key={fb.id}
+                                  onClick={() => { flowCanvasRef.current?.scrollToFallback(fb.id); flowCanvasRef.current?.focusNode(fb.id); setIsFocusNavOpen(false); }}
+                                  className="w-full flex items-center gap-xs px-sm py-xs rounded text-left hover:bg-error/5 transition-colors group"
+                                >
+                                  <span className="material-symbols-outlined text-error/50 text-xs shrink-0">alt_route</span>
+                                  <span className="text-on-surface-variant truncate flex-1 group-hover:text-error text-xs">{fb.title || "Fallback"}</span>
+                                  <span className={`${bg} ${text} px-xs rounded text-[8px] font-bold tracking-widest shrink-0`}>{fb.httpMethod || "GET"}</span>
+                                </button>
+                              );
+                            })}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={onStartClick}
-              disabled={isReorderPending || isAddAfterPending}
+              disabled={isReorderPending || isAddAfterPending || steps.length === 0}
               className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs transition-all font-bold font-code-sm text-code-sm disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 disabled:hover:opacity-50"
             >
               <span className={`material-symbols-outlined text-sm ${(isReorderPending || isAddAfterPending) ? "animate-spin" : ""}`}>

@@ -91,6 +91,14 @@ export default function FlowModal({ isOpen, onClose, onSave, initialData }: Flow
               placeholder="e.g. https://api.example.com/v1"
               className="w-full bg-surface-container-high border border-outline-variant rounded-lg px-md py-sm font-code-sm text-code-sm text-on-surface focus:border-primary outline-none transition-colors placeholder:text-outline"
             />
+            {/(localhost|127\.0\.0\.1)/i.test(globalURL) && (
+              <div className="flex items-start gap-xs mt-xs px-sm py-xs rounded-lg bg-yellow-400/10 border border-yellow-400/30">
+                <span className="material-symbols-outlined text-yellow-400 text-sm shrink-0 mt-0.5">warning</span>
+                <p className="font-body-sm text-body-sm text-yellow-300">
+                  <span className="font-bold">localhost</span> and <span className="font-bold">127.0.0.1</span> are only reachable from your own machine. Use a publicly accessible URL instead.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Global Headers */}

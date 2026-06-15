@@ -143,6 +143,8 @@ export function ProjectDropdown() {
       dispatch(setFlows(result.data));
       dispatch(setActiveFlow(null));
       dispatch(setActiveProject(projectId));
+    } else {
+      showToast(result.message ?? "Failed to load project flows. Please try again.", "error");
     }
   }
 
@@ -209,14 +211,24 @@ export function ProjectDropdown() {
       <div ref={containerRef} className="relative">
         {/* Trigger */}
         <button
+          data-project-trigger
           onClick={() => { setIsOpen((v) => !v); setIsCreating(false); setNewName(""); setEditingProject(null); }}
-          className="flex items-center gap-xs px-md py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant hover:text-primary hover:border-primary transition-all"
+          className={`flex items-center gap-sm px-md py-2 rounded-lg border-2 transition-all font-body-md min-w-[200px] ${
+            !activeProject
+              ? "border-primary/60 bg-primary/5 text-primary hover:bg-primary/10 hover:border-primary"
+              : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:text-primary hover:border-primary"
+          }`}
         >
-          <span className="material-symbols-outlined text-sm text-outline">folder_open</span>
-          <span className="font-body-md max-w-[160px] truncate">
-            {activeProject?.projectName ?? "Select Project"}
+          <span className={`material-symbols-outlined text-base shrink-0 ${!activeProject ? "text-primary" : "text-outline"}`}>
+            folder_open
           </span>
-          <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
+          <span className="font-body-md truncate flex-1 text-left">
+            {activeProject?.projectName ?? "Select a Project"}
+          </span>
+          {!activeProject && (
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+          )}
+          <span className={`material-symbols-outlined text-sm transition-transform duration-200 shrink-0 ${isOpen ? "rotate-180" : ""}`}>
             keyboard_arrow_down
           </span>
         </button>

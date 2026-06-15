@@ -14,6 +14,7 @@ import {
 } from "../store/flowsSlice";
 import FlowModal from "../components/FlowModal";
 import { createFlow as createFlowAPI, deleteFlow as deleteFlowAPI, editFlow as editFlowAPI, getProjectFlows } from "../api/flowRoute";
+import { useToast } from "../components/ToastProvider";
 
 interface FlowCardProps {
   flow: FlowRecord;
@@ -72,6 +73,7 @@ function FlowCard({ flow, onOpen, onEdit, onDelete }: FlowCardProps) {
 export default function MyFlowsPage() {
   const router = useRouter();
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const flows = useSelector((state: RootState) => state.flows.flows);
   const activeProjectId = useSelector((state: RootState) => state.projects.activeProjectId);
   const activeProject = useSelector((state: RootState) =>
@@ -93,6 +95,10 @@ export default function MyFlowsPage() {
   }
 
   function handleCreateNew() {
+    if (!activeProjectId) {
+      showToast("Please select or create a project before creating a flow.", "info");
+      return;
+    }
     setEditingFlow(null);
     setIsModalOpen(true);
   }
@@ -108,12 +114,16 @@ export default function MyFlowsPage() {
       const result = await editFlowAPI(editingFlow.id, data.flowName, data.globalURL, data.globalHeaders, data.globalVariables);
       if (result.success) {
         dispatch(updateFlowMeta({ id: editingFlow.id, ...data }));
+      } else {
+        showToast(result.message ?? "Failed to update flow. Please try again.", "error");
       }
     } else {
       const result = await createFlowAPI(activeProjectId ?? '', data.flowName, data.globalURL, data.globalHeaders, data.globalVariables);
       if (result.success) {
         dispatch(createFlow(result.data));
         router.push("/");
+      } else {
+        showToast(result.message ?? "Failed to create flow. Please try again.", "error");
       }
     }
   }
@@ -128,6 +138,8 @@ export default function MyFlowsPage() {
     const result = await deleteFlowAPI(deleteConfirmId);
     if (result.success) {
       dispatch(deleteFlow(deleteConfirmId));
+    } else {
+      showToast(result.message ?? "Failed to delete flow. Please try again.", "error");
     }
     setDeleteConfirmId(null);
   }
@@ -149,12 +161,33 @@ export default function MyFlowsPage() {
           </div>
           <button
             onClick={handleCreateNew}
-            className="flex items-center gap-sm bg-primary text-on-primary-fixed font-bold px-lg py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
+            title={!activeProjectId ? "Select or create a project first" : undefined}
+            className={`flex items-center gap-sm bg-primary text-on-primary-fixed font-bold px-lg py-3 rounded-lg transition-all ${activeProjectId ? "hover:opacity-90 active:scale-95" : "opacity-40 cursor-not-allowed"}`}
           >
             <span className="material-symbols-outlined">add_circle</span>
             Create New Flow
           </button>
         </div>
+
+        {/* No-project callout */}
+        {!activeProjectId && (
+          <div className="mb-xl flex items-start gap-md p-lg bg-primary/5 border-2 border-primary/25 rounded-xl">
+            <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">account_tree</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-headline-md text-headline-md text-on-surface mb-xs">No project selected</p>
+              <p className="text-on-surface-variant font-body-md">
+                Use the <span className="text-primary font-bold">Project</span> selector in the top bar to choose an existing project or create a new one. Flows belong to a project — you need one before you can create flows.
+              </p>
+            </div>
+            <button
+              onClick={() => document.querySelector<HTMLButtonElement>('[data-project-trigger]')?.click()}
+              className="shrink-0 flex items-center gap-xs px-md py-sm rounded-lg bg-primary text-on-primary-fixed font-bold text-body-sm hover:opacity-90 active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">folder_open</span>
+              Select Project
+            </button>
+          </div>
+        )}
 
         {/* Search Bar */}
         <div className="flex items-center mb-lg bg-surface-container-low p-sm rounded-xl border border-outline-variant">
@@ -185,7 +218,8 @@ export default function MyFlowsPage() {
           ))}
           <div
             onClick={handleCreateNew}
-            className="border-2 border-dashed border-outline-variant rounded-xl p-md flex flex-col items-center justify-center text-center opacity-60 hover:opacity-100 hover:border-primary hover:bg-surface-container-low transition-all cursor-pointer group"
+            title={!activeProjectId ? "Select or create a project first" : undefined}
+            className={`border-2 border-dashed border-outline-variant rounded-xl p-md flex flex-col items-center justify-center text-center transition-all group ${activeProjectId ? "opacity-60 hover:opacity-100 hover:border-primary hover:bg-surface-container-low cursor-pointer" : "opacity-30 cursor-not-allowed"}`}
           >
             <div className="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center mb-md group-hover:bg-primary/20 transition-colors">
               <span className="material-symbols-outlined text-2xl">add</span>

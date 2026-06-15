@@ -57,7 +57,9 @@ api.interceptors.response.use((response) => {
         console.warn('UNAUTHORIZED!');
         if (typeof window !== 'undefined') {
             if (window.location.pathname !== '/login') {
+                
                 const refreshResponse = await refreshAPI();
+
                 if(refreshResponse.success){
                     const newAccessToken = refreshResponse.data;
                     store.dispatch(setToken(newAccessToken));

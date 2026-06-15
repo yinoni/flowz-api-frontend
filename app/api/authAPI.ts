@@ -113,7 +113,7 @@ export const logout = async (): Promise<AuthResponse | AuthErrorResponse> => {
             data: ""
         }
     }
-    catch(error: any){        
+    catch(error: any){       
         return toAPIError(error);
     }
 }

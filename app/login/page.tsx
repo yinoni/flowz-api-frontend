@@ -54,11 +54,10 @@ export default function LoginPage() {
   async function postAuth(apiResponse: AuthResponse | AuthErrorResponse){
     setIsLoading(true);
 
-    if (apiResponse.success) {      
+    if (apiResponse.success) {
       await initData(apiResponse.data);
     } else {
-
-      setError(apiResponse.msg);
+      setError(apiResponse.message ?? "An error occurred. Please try again.");
     }
     setIsLoading(false);
   }
@@ -194,27 +193,9 @@ export default function LoginPage() {
                 <PasswordField
                   value={form.password}
                   onChange={(v) => handleChange("password", v)}
-                  required
-                  labelAction={
-                    !isSignUp ? (
-                      <button
-                        type="button"
-                        className="text-primary font-body-sm text-body-sm hover:underline"
-                      >
-                        Forgot?
-                      </button>
-                    ) : undefined
-                  }
+                  required   
                 />
               </div>
-
-              {/* Error banner */}
-              {error && (
-                <div className="flex items-start gap-sm bg-error-container/20 border border-error-container rounded-lg px-md py-sm mt-lg">
-                  <span className="material-symbols-outlined text-error text-sm shrink-0 mt-0.5">error</span>
-                  <p className="text-error font-body-sm text-body-sm">{error}</p>
-                </div>
-              )}
 
               {/* Generous spacing before the CTA */}
               <div className="mt-10">
@@ -232,6 +213,14 @@ export default function LoginPage() {
                   )}
                   {isLoading ? "Authenticating..." : isSignUp ? "Sign up" : "Login"}
                 </button>
+
+                {/* Error message */}
+                {error && (
+                  <div className="flex items-start gap-sm bg-error-container/20 border border-error-container rounded-lg px-md py-sm mt-md">
+                    <span className="material-symbols-outlined text-error text-sm shrink-0 mt-0.5">error</span>
+                    <p className="text-error font-body-sm text-body-sm">{error}</p>
+                  </div>
+                )}
               </div>
             </form>
 
