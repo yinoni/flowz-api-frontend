@@ -239,7 +239,7 @@ function VerifyEmailContent() {
         </div>
 
         <p className="text-center text-outline font-code-sm text-code-sm mt-lg">
-          © 2024 FlowZ Engine · All transmissions encrypted
+          © 2026 FlowZ Engine
         </p>
       </div>
     </div>
