@@ -116,7 +116,7 @@ export default function HistoryPage() {
       {/* Footer */}
       <footer className="bg-surface-container-lowest border-t border-outline-variant flex justify-between items-center px-lg h-12 shrink-0">
         <span className="font-code-md text-code-md text-tertiary">FlowZ Engine</span>
-        <span className="font-code-sm text-code-sm text-outline">© 2024 FlowZ Engine.</span>
+        <span className="font-code-sm text-code-sm text-outline">© 2026 FlowZ Engine.</span>
       </footer>
     </>
   );

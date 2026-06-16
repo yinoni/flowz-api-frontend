@@ -1007,7 +1007,7 @@ export default function Home() {
           ))}
         </div>
         <div className="h-6 px-lg flex items-center border-t border-outline-variant bg-surface-container-lowest shrink-0">
-          <div className="text-[10px] text-outline">© 2024 FlowZ Engine</div>
+          <div className="text-[10px] text-outline">© 2026 FlowZ Engine</div>
         </div>
       </footer>
     </>

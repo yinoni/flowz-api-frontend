@@ -237,7 +237,7 @@ export default function MyFlowsPage() {
       {/* Footer */}
       <footer className="bg-surface-container-lowest font-code-sm text-code-sm h-12 flex justify-between items-center px-lg border-t border-outline-variant shrink-0">
         <span className="font-code-md text-code-md text-tertiary">FlowZ Engine</span>
-        <span className="text-outline">© 2024 FlowZ Engine.</span>
+        <span className="text-outline">© 2026 FlowZ Engine.</span>
       </footer>
 
       {/* Create / Edit Modal */}
