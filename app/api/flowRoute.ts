@@ -44,7 +44,7 @@ export const editFlow = async (id: string, flowName: string, globalURL: string, 
 
 export const deleteFlow = async (flowId: string): Promise<APIResponse | APIErrorResponse> => {
     try {
-        await api.delete(`${API_ROUTE}`, { params: { flowId } });
+        await api.delete(`${API_ROUTE}/${flowId}`, );
 
         return {
             success: true,
