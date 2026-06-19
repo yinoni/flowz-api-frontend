@@ -447,6 +447,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
     if (!el) return;
     function onWheel(e: WheelEvent) {
       if (!e.ctrlKey) return;
+      if (!el) return;
       e.preventDefault();
       const currentScale = scaleRef.current;
       const direction = e.deltaY < 0 ? 1 : -1;
