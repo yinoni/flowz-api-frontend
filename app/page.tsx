@@ -205,6 +205,7 @@ export default function Home() {
   const [isAssertionModalOpen, setIsAssertionModalOpen] = useState(false);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
   const [isTerminalExpanded, setIsTerminalExpanded] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [isFocusNavOpen, setIsFocusNavOpen] = useState(false);
   const flowCanvasRef = useRef<FlowCanvasHandle>(null);
 
@@ -506,6 +507,7 @@ export default function Home() {
     }
     
 
+    setIsTerminalOpen(true);
     setLogs([]);
     setStepResults({});
 
@@ -641,7 +643,7 @@ export default function Home() {
         </div>
         <footer className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full h-[180px] z-30 shrink-0">
           <div className="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low shrink-0">
-            <span className="font-code-md text-code-md text-tertiary">RUN EXECUTION</span>
+            <span className="font-code-md text-code-md text-tertiary">TERMINAL</span>
           </div>
           <div className="flex-1 flex items-center justify-center">
             <span className="text-outline font-code-sm text-code-sm">No flow selected.</span>
@@ -901,12 +903,12 @@ export default function Home() {
 
       {/* Execution Terminal */}
       <footer
-        className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full z-30 shrink-0 transition-[height] duration-200 ease-in-out"
-        style={{ height: isTerminalExpanded ? "480px" : "180px" }}
+        className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full z-30 shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out"
+        style={{ height: !isTerminalOpen ? "32px" : isTerminalExpanded ? "480px" : "180px" }}
       >
         <div className="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low shrink-0">
           <div className="flex items-center gap-md">
-            <span className="font-code-md text-code-md text-tertiary">RUN EXECUTION</span>
+            <span className="font-code-md text-code-md text-tertiary">TERMINAL</span>
             <div className="flex items-center gap-xs ml-lg">
               <div className="w-2 h-2 rounded-full bg-secondary-fixed animate-pulse" />
               <span className="font-code-sm text-code-sm text-on-surface-variant">
@@ -915,13 +917,24 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-sm">
+            {isTerminalOpen && (
+              <button
+                onClick={() => setIsTerminalExpanded((v) => !v)}
+                className="text-outline hover:text-on-surface transition-colors"
+                title={isTerminalExpanded ? "Collapse terminal" : "Expand terminal"}
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {isTerminalExpanded ? "expand_more" : "expand_less"}
+                </span>
+              </button>
+            )}
             <button
-              onClick={() => setIsTerminalExpanded((v) => !v)}
+              onClick={() => setIsTerminalOpen((v) => !v)}
               className="text-outline hover:text-on-surface transition-colors"
-              title={isTerminalExpanded ? "Collapse terminal" : "Expand terminal"}
+              title={isTerminalOpen ? "Close terminal" : "Open terminal"}
             >
               <span className="material-symbols-outlined text-sm">
-                {isTerminalExpanded ? "expand_more" : "expand_less"}
+                {isTerminalOpen ? "close" : "keyboard_arrow_up"}
               </span>
             </button>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useReducer, useState, useEffect, forwardRef, useImperativeHandle } from "react";
+import React, { useRef, useReducer, useState, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from "react";
 import type { Step } from "../store/stepsSlice";
 import { getHttpMethodColor } from "../utils/utils";
 
@@ -409,6 +409,11 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const [hoveredConnection, setHoveredConnection] = useState<{ stepId: string; fallbackId: string } | null>(null);
   const [canvasViewportHeight, setCanvasViewportHeight] = useState(900);
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(1);
+  scaleRef.current = scale;
+  const zoomPivotRef = useRef<{ contentX: number; contentY: number; mouseX: number; mouseY: number } | null>(null);
+  const [showZoomBadge, setShowZoomBadge] = useState(false);
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -419,6 +424,49 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
     return () => ro.disconnect();
   }, []);
 
+  // Show zoom badge for 1s after each zoom, resetting the timer on every change
+  useEffect(() => {
+    setShowZoomBadge(true);
+    const id = setTimeout(() => setShowZoomBadge(false), 1000);
+    return () => clearTimeout(id);
+  }, [scale]);
+
+  // Adjust scroll after a zoom so the point under the cursor stays pinned
+  useLayoutEffect(() => {
+    const el = canvasRef.current;
+    const pivot = zoomPivotRef.current;
+    if (!el || !pivot) return;
+    el.scrollLeft = pivot.contentX * scale - pivot.mouseX;
+    el.scrollTop = pivot.contentY * scale - pivot.mouseY;
+    zoomPivotRef.current = null;
+  }, [scale]);
+
+  // Ctrl+Scroll → zoom canvas
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const currentScale = scaleRef.current;
+      const direction = e.deltaY < 0 ? 1 : -1;
+      const newScale = Math.min(2, Math.max(0.25, currentScale * (1 + direction * 0.08)));
+      if (Math.abs(newScale - currentScale) < 0.001) return;
+      const rect = el.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      zoomPivotRef.current = {
+        contentX: (el.scrollLeft + mouseX) / currentScale,
+        contentY: (el.scrollTop + mouseY) / currentScale,
+        mouseX,
+        mouseY,
+      };
+      setScale(newScale);
+    }
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   const fallbackPosMapRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const stepsRef = useRef(steps);
   stepsRef.current = steps;
@@ -426,9 +474,10 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
   function jumpToFallback(fallbackId: string) {
     const pos = fallbackPosMapRef.current.get(fallbackId);
     if (!pos) return;
+    const s = scaleRef.current;
     canvasRef.current?.scrollTo({
-      top: Math.max(0, pos.y - 80),
-      left: Math.max(0, pos.x - 80),
+      top: Math.max(0, pos.y * s - 80),
+      left: Math.max(0, pos.x * s - 80),
       behavior: 'smooth',
     });
   }
@@ -437,18 +486,20 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
     scrollToStep(stepId) {
       const step = stepsRef.current.find(s => s.id === stepId);
       if (!step) return;
+      const s = scaleRef.current;
       canvasRef.current?.scrollTo({
-        top: Math.max(0, step.position.y - 80),
-        left: Math.max(0, step.position.x - 80),
+        top: Math.max(0, step.position.y * s - 80),
+        left: Math.max(0, step.position.x * s - 80),
         behavior: 'smooth',
       });
     },
     scrollToFallback(fallbackId) {
       const pos = fallbackPosMapRef.current.get(fallbackId);
       if (!pos) return;
+      const s = scaleRef.current;
       canvasRef.current?.scrollTo({
-        top: Math.max(0, pos.y - 80),
-        left: Math.max(0, pos.x - 80),
+        top: Math.max(0, pos.y * s - 80),
+        left: Math.max(0, pos.x * s - 80),
         behavior: 'smooth',
       });
     },
@@ -508,8 +559,9 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
     if (!el) return;
 
     const rect = el.getBoundingClientRect();
-    const startX = nativeEvent.clientX - rect.left + el.scrollLeft;
-    const startY = nativeEvent.clientY - rect.top + el.scrollTop;
+    const capturedScale = scaleRef.current;
+    const startX = (nativeEvent.clientX - rect.left + el.scrollLeft) / capturedScale;
+    const startY = (nativeEvent.clientY - rect.top + el.scrollTop) / capturedScale;
 
     connectDragRef.current = {
       fromStepId: stepId,
@@ -531,8 +583,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
       const el = canvasRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const x = e.clientX - rect.left + el.scrollLeft;
-      const y = e.clientY - rect.top + el.scrollTop;
+      const x = (e.clientX - rect.left + el.scrollLeft) / capturedScale;
+      const y = (e.clientY - rect.top + el.scrollTop) / capturedScale;
 
       let overFallbackId: string | null = null;
       for (let i = 0; i < capturedFallbackSteps.length; i++) {
@@ -735,6 +787,15 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
           </span>
         </div>
       )}
+
+      {/* Invisible spacer that tells the scroll container how large the scaled content is */}
+      <div
+        aria-hidden
+        style={{ position: 'absolute', top: 0, left: 0, width: canvasWidth * scale, height: canvasHeight * scale, pointerEvents: 'none' }}
+      />
+
+      {/* Scaled content wrapper */}
+      <div style={{ position: 'absolute', top: 0, left: 0, width: canvasWidth, height: canvasHeight, transform: `scale(${scale})`, transformOrigin: '0 0' }}>
       <svg
         className="absolute inset-0 pointer-events-none z-0"
         style={{ width: canvasWidth, height: canvasHeight }}
@@ -1020,7 +1081,14 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCa
           </div>
         )}
       </div>
+      </div>{/* end scaled content wrapper */}
 
+      {showZoomBadge && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-xs bg-surface-container-high border border-outline-variant rounded-lg px-sm py-xs shadow-lg pointer-events-none">
+          <span className="material-symbols-outlined text-xs text-outline">zoom_in</span>
+          <span className="font-code-sm text-code-sm text-on-surface-variant">{Math.round(scale * 100)}%</span>
+        </div>
+      )}
     </section>
   );
 });
