@@ -176,7 +176,7 @@ export default function MyFlowsPage() {
             <div className="flex-1 min-w-0">
               <p className="font-headline-md text-headline-md text-on-surface mb-xs">No project selected</p>
               <p className="text-on-surface-variant font-body-md">
-                Use the <span className="text-primary font-bold">Project</span> selector in the top bar to choose an existing project or create a new one. Flows belong to a project — you need one before you can create flows.
+                Use the <span className="text-primary font-bold">Project</span> selector in the top bar to choose an existing project or create a new one. Flows belong to a project. you need one before you can create flows.
               </p>
             </div>
             <button

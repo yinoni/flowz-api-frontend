@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
+import { store } from "./store/store";
 import type { RootState } from "./store/store";
 import {
   addStepToFlow,
@@ -372,6 +373,7 @@ export default function Home() {
   const cancelledTempIds = useRef(new Set<string>());
   const [isReorderPending, setIsReorderPending] = useState(false);
   const [isAddAfterPending, setIsAddAfterPending] = useState(false);
+  const [isDeleteSyncPending, setIsDeleteSyncPending] = useState(false);
 
   async function handleReorderSteps(orderedIds: string[]) {
     if (!activeFlowId) return;
@@ -404,6 +406,7 @@ export default function Home() {
 
   async function handleDeleteStep(stepId: string) {
     if (!activeFlowId) return;
+
     if (stepId.startsWith('temp_')) {
       cancelledTempIds.current.add(stepId);
       dispatch(removeStepFromFlow({ flowId: activeFlowId, stepId }));
@@ -411,11 +414,22 @@ export default function Home() {
     }
     const previousSteps = [...steps];
     dispatch(removeStepFromFlow({ flowId: activeFlowId, stepId }));
+    const updatedPositions = store.getState().flows.flows
+      .find(f => f.id === activeFlowId)?.steps
+      .map(s => ({ id: s.id, position: s.position })) ?? [];
     try {
       const result = await deleteStepAPI(activeFlowId, stepId);
       if (!result.success) {
         dispatch(setFlowSteps({ flowId: activeFlowId, steps: previousSteps }));
         showToast("Failed to delete step. Please try again.", "error");
+        return;
+      }
+      if (updatedPositions.length > 0) {
+        setIsDeleteSyncPending(true);
+        await syncStepsAPI(activeFlowId, null, updatedPositions).catch(() => {
+          showToast("Failed to sync step positions. Please try again.", "error");
+        });
+        setIsDeleteSyncPending(false);
       }
     } catch {
       dispatch(setFlowSteps({ flowId: activeFlowId, steps: previousSteps }));
@@ -1004,13 +1018,13 @@ export default function Home() {
 
             <button
               onClick={onStartClick}
-              disabled={isReorderPending || isAddAfterPending || steps.length === 0}
+              disabled={isReorderPending || isAddAfterPending || isDeleteSyncPending || steps.length === 0}
               className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs transition-all font-bold font-code-sm text-code-sm disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 disabled:hover:opacity-50"
             >
-              <span className={`material-symbols-outlined text-sm ${(isReorderPending || isAddAfterPending) ? "animate-spin" : ""}`}>
-                {(isReorderPending || isAddAfterPending) ? "progress_activity" : "play_arrow"}
+              <span className={`material-symbols-outlined text-sm ${(isReorderPending || isAddAfterPending || isDeleteSyncPending) ? "animate-spin" : ""}`}>
+                {(isReorderPending || isAddAfterPending || isDeleteSyncPending) ? "progress_activity" : "play_arrow"}
               </span>
-              {(isReorderPending || isAddAfterPending) ? "Saving..." : "Start"}
+              {(isReorderPending || isAddAfterPending || isDeleteSyncPending) ? "Saving..." : "Start"}
             </button>
           </div>
         </div>
