@@ -1,13 +1,15 @@
 "use client";
 
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
 import { logout } from "../store/userSlice";
 import { logout as logoutAPI } from "../api/authAPI";
+import type { RootState } from "../store/store";
 
 export default function SettingsPage() {
   const dispatch = useDispatch();
   const router = useRouter();
+  const currentUser = useSelector((state: RootState) => state.user.currentUser);
 
   async function handleLogout() {
     const logoutResponse = await logoutAPI();
@@ -27,6 +29,31 @@ export default function SettingsPage() {
               Manage your account preferences.
             </p>
           </header>
+
+          {/* Profile */}
+          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-md">
+            <div className="flex items-center gap-sm mb-md text-on-surface">
+              <span className="material-symbols-outlined">account_circle</span>
+              <h2 className="font-headline-md text-headline-md">Profile</h2>
+            </div>
+            <div className="space-y-md">
+              {[
+                { label: "Username", value: currentUser?.username, icon: "person" },
+                { label: "Email", value: currentUser?.email, icon: "mail" },
+              ].map(({ label, value, icon }) => (
+                <div key={label}>
+                  <label className="text-[10px] text-outline uppercase tracking-widest font-bold block mb-xs">
+                    {label}
+                  </label>
+                  <div className="flex items-center gap-sm bg-surface-container border border-outline-variant rounded-lg px-md py-sm">
+                    <span className="material-symbols-outlined text-sm text-outline">{icon}</span>
+                    <span className="font-code-md text-code-md text-on-surface-variant flex-1">{value ?? "—"}</span>
+                    <span className="material-symbols-outlined text-xs text-outline" title="Read only">lock</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* Danger Zone */}
           <section className="bg-surface-container-low border border-error/40 rounded-xl p-md">
