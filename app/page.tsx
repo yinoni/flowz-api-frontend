@@ -657,7 +657,7 @@ export default function Home() {
         </div>
         <footer className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full h-[180px] z-30 shrink-0">
           <div className="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low shrink-0">
-            <span className="font-code-md text-code-md text-tertiary">TERMINAL</span>
+            <span className="font-code-md text-code-md text-outline">TERMINAL</span>
           </div>
           <div className="flex-1 flex items-center justify-center">
             <span className="text-outline font-code-sm text-code-sm">No flow selected.</span>
@@ -922,7 +922,7 @@ export default function Home() {
       >
         <div className="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low shrink-0">
           <div className="flex items-center gap-md">
-            <span className="font-code-md text-code-md text-tertiary">TERMINAL</span>
+            <span className="font-code-md text-code-md text-outline">TERMINAL</span>
             <div className="flex items-center gap-xs ml-lg">
               <div className="w-2 h-2 rounded-full bg-secondary-fixed animate-pulse" />
               <span className="font-code-sm text-code-sm text-on-surface-variant">
