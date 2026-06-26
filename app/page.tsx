@@ -40,9 +40,11 @@ import {
   deleteFallbackStep as deleteFallbackStepAPI,
   syncSteps as syncStepsAPI,
 } from "./api/flowRoute";
-import { executeFlow, getExecutionID } from "./api/flowExecutionAPI";
-import { useWebSocket } from "./components/WebSocketProvider";
 import { useToast } from "./components/ToastProvider";
+import { API_URL } from "./utils/consts";
+import { jwtDecode } from "jwt-decode";
+import { refresh } from "./api/authAPI";
+import { logout, setToken } from "./store/userSlice";
 
 type LogStatus =
   | "STEP_PASSED"
@@ -105,8 +107,8 @@ function LogLine({ log }: { log: LogEntry }) {
     return (
       <div className="flex items-center gap-md">
         <span className="text-outline w-24 shrink-0">{log.timestamp}</span>
-        <span className="material-symbols-outlined text-tertiary text-sm animate-spin">refresh</span>
-        <span className="text-tertiary">{log.message}</span>
+        <span className="material-symbols-outlined text-on-surface-variant text-sm animate-spin">refresh</span>
+        <span className="text-on-surface-variant">{log.message}</span>
       </div>
     );
   }
@@ -136,12 +138,12 @@ export default function Home() {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const { flows, activeFlowId, executionId } = useSelector((state: RootState) => state.flows);
+  const userData = useSelector((state: RootState) => state.user);
   const activeProjectId = useSelector((state: RootState) => state.projects.activeProjectId);
   const isFocusMode = useSelector((state: RootState) => state.ui.isFocusMode);
   const activeFlow = flows.find((f) => f.id === activeFlowId) ?? null;
   const steps = activeFlow?.steps ?? [];
   const fallbackSteps = activeFlow?.fallbackSteps ?? [];
-  const {stompClient, isConnected} = useWebSocket();
   const subscriptionRef = useRef<any>(null);
 
   const [isStepsLoading, setIsStepsLoading] = useState(false);
@@ -181,6 +183,7 @@ export default function Home() {
   const KNOWN_WS_KEYS = new Set(["status", "success", "message", "response"]);
   function extractStepResult(payload: FlowWSResponse): { stepId: string; passed: boolean } | null {
     const stepId = Object.keys(payload).find((k) => !KNOWN_WS_KEYS.has(k));
+    
     if (!stepId) return null;
     return { stepId, passed: payload.success };
   }
@@ -374,6 +377,8 @@ export default function Home() {
   const [isReorderPending, setIsReorderPending] = useState(false);
   const [isAddAfterPending, setIsAddAfterPending] = useState(false);
   const [isDeleteSyncPending, setIsDeleteSyncPending] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const eventSourceRef = useRef<AbortController | null>(null);
 
   async function handleReorderSteps(orderedIds: string[]) {
     if (!activeFlowId) return;
@@ -516,26 +521,107 @@ export default function Home() {
 
   const onStartClick = async () => {
     if(!activeFlow){
-      //Show an error toast message
+      showToast("Failed to start execution. No active flow is found.", "error");
       return;
     }
-    
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.abort();
+      eventSourceRef.current = null;
+    }
 
     setIsTerminalOpen(true);
     setLogs([]);
     setStepResults({});
+    setIsExecuting(true);
 
-    if( executionId === null){
-      const newExecutionId = await getExecutionID(activeFlow.id);
-      if(newExecutionId.success){
-        dispatch(setExecutionId(newExecutionId.data));
-        startWebSocketSubscription(newExecutionId.data);
-      } else {
-        showToast(newExecutionId.message ?? "Failed to start execution. Please try again.", "error");
+    let currentToken = userData.token;
+
+    if(currentToken){
+      
+      let jwtDecoded = jwtDecode(currentToken);
+      let currentMiliTime = Math.floor(Date.now() / 1000);
+      let jwtExpireMili = jwtDecoded.exp ?? 0;
+      
+      if((currentMiliTime + (5*60)) > jwtExpireMili){
+        const refreshResponse = await refresh();
+        if(refreshResponse.success && refreshResponse.data){
+          currentToken = refreshResponse.data;
+          dispatch(setToken(currentToken));
+        }
+        else{
+            dispatch(logout());
+            const currentPath = window.location.pathname;
+            window.location.href = `/login?callbackUrl=${encodeURIComponent(currentPath)}`;
+            return;
+        }
       }
-    }
-    else{
-      startWebSocketSubscription(executionId);
+    
+    
+      const abortController = new AbortController();
+      eventSourceRef.current = abortController;
+
+      try {
+        const response = await fetch(API_URL + '/sse/flows/' + activeFlow.id + '/execute', {
+          headers: { Authorization: `Bearer ${currentToken}` },
+          signal: abortController.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          addLog("INFO", `Failed to start execution (HTTP ${response.status}).`);
+          eventSourceRef.current = null;
+          setIsExecuting(false);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done){
+             
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() ?? '';
+
+          for (const part of parts) {
+            if (!part.trim()) continue;
+            let eventName = 'message';
+            let data = '';
+            for (const line of part.split('\n')) {
+              if (line.startsWith('event:')) eventName = line.slice(6).trim();
+              else if (line.startsWith('data:')) data = line.slice(5).trim();
+            }
+            if (!data) continue;
+
+            if (eventName === 'init') {
+              const parsed = JSON.parse(data);
+              dispatch(setExecutionId(parsed.executionId));
+            } else if (eventName === 'logs') {
+              const payload: FlowWSResponse = JSON.parse(data);
+              const handler = wsStatusHandler[payload.status];
+              if (handler) {
+                handler(payload);
+              } else {
+                addLog("INFO", `Unrecognized status: ${payload.status}`);
+              }
+              if (payload.success === false) handleExecutionFinished();
+            }
+          }
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          addLog("INFO", "Connection lost.");
+        }
+        eventSourceRef.current = null;
+        setIsExecuting(false);
+      }
     }
   }
   
@@ -544,17 +630,18 @@ export default function Home() {
     "FLOW_STARTING": (payload) => {
       addLog("FLOW_STARTING", "Flow execution is starting...");
     },
-    "FLOW_COMPLETED": (payload) => {
+    "FLOW_PASSED": (payload) => {
       addLog("FLOW_COMPLETED", "Flow tests completed successfully.");
-      handleExecutionFinished(payload.message);
+      handleExecutionFinished();
     },
     "FLOW_FAILED": (payload) => {
       addLog("STEP_FAILED", "Flow Failed!");
       addLog("STEP_FAILED", payload.message);
+      
     },
     "COMPLETED": (payload) => {
       addLog("FLOW_COMPLETED", "Flow tests completed successfully.");
-      handleExecutionFinished(payload.message);
+      handleExecutionFinished();
     },
     "STEP_PASSED": (payload) => {
       addLog("STEP_PASSED", payload.message, payload.response);
@@ -568,49 +655,13 @@ export default function Home() {
     },
   }
 
-    // פונקציית ההמשך שלך:
-    async function startWebSocketSubscription(id: string) {
-      
-      if(!stompClient)
-        return;
-
-      const waitForSubscription = new Promise<any>((resolve) => {
-        const sub = stompClient.subscribe(`/flow-events/${id}`, (message: any) => {        
-          if(!message.body)
-            return;
-  
-          const payload: FlowWSResponse = JSON.parse(message.body);
-
-          const handler = wsStatusHandler[payload.status];
-
-          handler(payload);
-
-          if(payload.success === false)
-            handleExecutionFinished("FAILED!");
-          
-        });
-  
-        subscriptionRef.current = sub;
-
-        setTimeout(() => {
-          resolve(sub);
-        }, 100);
-      });
-
-      await waitForSubscription;
-
-      const executeAPI = await executeFlow(id);
-      if(!executeAPI.success){
-        addLog("STEP_FAILED", "Failed to trigger flow execution.");
-        handleExecutionFinished("error!");
+    function handleExecutionFinished(){
+      if (eventSourceRef.current) {
+        eventSourceRef.current.abort();
+        eventSourceRef.current = null;
+        dispatch(setExecutionId(null));
       }
-      
-    }
-    
-
-    function handleExecutionFinished(result: any){
-      subscriptionRef.current.unsubscribe();
-      dispatch(setExecutionId(null));
+      setIsExecuting(false);
     }
 
   
@@ -657,7 +708,7 @@ export default function Home() {
         </div>
         <footer className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full h-[180px] z-30 shrink-0">
           <div className="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low shrink-0">
-            <span className="font-code-md text-code-md text-tertiary">TERMINAL</span>
+            <span className="font-code-md text-code-md text-outline">TERMINAL</span>
           </div>
           <div className="flex-1 flex items-center justify-center">
             <span className="text-outline font-code-sm text-code-sm">No flow selected.</span>
@@ -917,12 +968,11 @@ export default function Home() {
 
       {/* Execution Terminal */}
       <footer
-        className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full z-30 shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out"
-        style={{ height: !isTerminalOpen ? "32px" : isTerminalExpanded ? "480px" : "180px" }}
+        className="bg-surface-container-lowest border-t border-outline-variant flex flex-col w-full z-30 shrink-0"
       >
         <div className="h-xl flex justify-between items-center px-lg border-b border-outline-variant bg-surface-container-low shrink-0">
           <div className="flex items-center gap-md">
-            <span className="font-code-md text-code-md text-tertiary">TERMINAL</span>
+            <span className="font-code-md text-code-md text-outline">TERMINAL</span>
             <div className="flex items-center gap-xs ml-lg">
               <div className="w-2 h-2 rounded-full bg-secondary-fixed animate-pulse" />
               <span className="font-code-sm text-code-sm text-on-surface-variant">
@@ -1018,23 +1068,28 @@ export default function Home() {
 
             <button
               onClick={onStartClick}
-              disabled={isReorderPending || isAddAfterPending || isDeleteSyncPending || steps.length === 0}
+              disabled={isReorderPending || isAddAfterPending || isDeleteSyncPending || isExecuting || steps.length === 0}
               className="bg-secondary-container text-on-secondary-container px-md py-xs rounded flex items-center gap-xs transition-all font-bold font-code-sm text-code-sm disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 disabled:hover:opacity-50"
             >
-              <span className={`material-symbols-outlined text-sm ${(isReorderPending || isAddAfterPending || isDeleteSyncPending) ? "animate-spin" : ""}`}>
-                {(isReorderPending || isAddAfterPending || isDeleteSyncPending) ? "progress_activity" : "play_arrow"}
+              <span className={`material-symbols-outlined text-sm ${(isReorderPending || isAddAfterPending || isDeleteSyncPending || isExecuting) ? "animate-spin" : ""}`}>
+                {(isReorderPending || isAddAfterPending || isDeleteSyncPending || isExecuting) ? "progress_activity" : "play_arrow"}
               </span>
-              {(isReorderPending || isAddAfterPending || isDeleteSyncPending) ? "Saving..." : "Start"}
+              {isExecuting ? "Running..." : (isReorderPending || isAddAfterPending || isDeleteSyncPending) ? "Saving..." : "Start"}
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-md custom-scrollbar font-code-sm text-code-sm space-y-1">
-          {logs.map((log) => (
-            <LogLine key={log.id} log={log} />
-          ))}
-        </div>
-        <div className="h-6 px-lg flex items-center border-t border-outline-variant bg-surface-container-lowest shrink-0">
-          <div className="text-[10px] text-outline">© 2026 FlowZ Engine</div>
+        <div
+          className="overflow-hidden transition-[height] duration-200 ease-in-out flex flex-col"
+          style={{ height: !isTerminalOpen ? "0px" : isTerminalExpanded ? "448px" : "148px" }}
+        >
+          <div className="flex-1 overflow-y-auto p-md custom-scrollbar font-code-sm text-code-sm space-y-1">
+            {logs.map((log) => (
+              <LogLine key={log.id} log={log} />
+            ))}
+          </div>
+          <div className="h-6 px-lg flex items-center border-t border-outline-variant bg-surface-container-lowest shrink-0">
+            <div className="text-[10px] text-outline">© 2026 FlowZ Engine</div>
+          </div>
         </div>
       </footer>
     </>

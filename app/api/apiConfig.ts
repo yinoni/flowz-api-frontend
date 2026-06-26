@@ -54,32 +54,25 @@ api.interceptors.response.use((response) => {
     const originalRequest = error.config;
 
     if(status === 401){
-        console.warn('UNAUTHORIZED!');
         if (typeof window !== 'undefined') {
             if (window.location.pathname !== '/login') {
-                
                 const refreshResponse = await refreshAPI();
 
-                if(refreshResponse.success){
+                if(refreshResponse.success && refreshResponse.data){
                     const newAccessToken = refreshResponse.data;
                     store.dispatch(setToken(newAccessToken));
 
                     originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
 
                     return api(originalRequest);
-                }else{                    
+                }else{
                     store.dispatch(logout());
                     const currentPath = window.location.pathname;
                     window.location.href = `/login?callbackUrl=${encodeURIComponent(currentPath)}`;
-                }   
-            } else {
-                console.warn("API returned 401/403 while already on the login page.");
+                }
             }
        }
     }
-
-    if(status === 403)
-        console.warn('FORBIDDEN!');
         
     return Promise.reject(error);
 });

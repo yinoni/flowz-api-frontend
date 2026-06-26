@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import TutorialModal from "./TutorialModal";
 
 const NAV_ITEMS = [
   { icon: "account_tree", label: "My Flows", href: "/flows" },
@@ -12,6 +14,7 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
   return (
     <aside className="bg-surface-container h-full w-sidebar-width flex flex-col py-md px-sm border-r border-outline-variant shrink-0">
@@ -41,6 +44,17 @@ export function Sidebar() {
         })}
       </nav>
 
+      {/* Tutorial button */}
+      <button
+        onClick={() => setIsTutorialOpen(true)}
+        className="flex items-center gap-md px-md py-sm rounded-lg transition-all font-body-md text-on-surface-variant hover:bg-surface-variant w-full"
+        title="Open tutorial"
+      >
+        <span className="material-symbols-outlined">help</span>
+        <span>Tutorial</span>
+      </button>
+
+      <TutorialModal isOpen={isTutorialOpen} onClose={() => setIsTutorialOpen(false)} />
     </aside>
   );
 }
