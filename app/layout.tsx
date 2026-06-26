@@ -41,11 +41,9 @@ export default function RootLayout({
       <body className="bg-background text-on-background h-screen flex flex-col overflow-hidden font-body-md text-body-md">
         <StoreProvider>
           <GoogleOAuthProvider clientId={clientId}>
-            <WebSocketProvider>
-              <ClientLayoutWrapper>
-                {children}
-              </ClientLayoutWrapper>
-            </WebSocketProvider>
+            <ClientLayoutWrapper>
+              {children}
+            </ClientLayoutWrapper>
           </GoogleOAuthProvider>
         </StoreProvider>
       </body>
