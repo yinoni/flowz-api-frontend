@@ -3,7 +3,6 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "./components/StoreProvider";
 import { ClientLayoutWrapper } from "./components/ClientLayoutWrapper";
-import { WebSocketProvider } from "./components/WebSocketProvider";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const inter = Inter({
