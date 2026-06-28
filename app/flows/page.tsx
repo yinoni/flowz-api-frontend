@@ -9,11 +9,13 @@ import {
   deleteFlow,
   updateFlowMeta,
   setActiveFlow,
+  setFlowSteps,
   type FlowRecord,
   setFlows,
 } from "../store/flowsSlice";
 import FlowModal from "../components/FlowModal";
-import { createFlow as createFlowAPI, deleteFlow as deleteFlowAPI, editFlow as editFlowAPI, getProjectFlows } from "../api/flowRoute";
+import Button from "../components/Button";
+import { createFlow as createFlowAPI, deleteFlow as deleteFlowAPI, editFlow as editFlowAPI, getProjectFlows, createMockupFlow } from "../api/flowRoute";
 import { useToast } from "../components/ToastProvider";
 
 interface FlowCardProps {
@@ -84,6 +86,7 @@ export default function MyFlowsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowRecord | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
   const filtered = flows.filter((f) =>
     f.flowName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -92,6 +95,27 @@ export default function MyFlowsPage() {
   function handleOpenFlow(flow: FlowRecord) {
     dispatch(setActiveFlow(flow.id));
     router.push("/");
+  }
+
+  async function handleCreateDemo() {
+    if (!activeProjectId) {
+      showToast("Please select or create a project before creating a demo flow.", "info");
+      return;
+    }
+    setIsDemoLoading(true);
+    const result = await createMockupFlow(activeProjectId);
+    setIsDemoLoading(false);
+    if (result.success) {
+      const flow = result.data as FlowRecord;
+      dispatch(createFlow(flow));
+      if (flow.steps?.length) {
+        dispatch(setFlowSteps({ flowId: flow.id, steps: flow.steps }));
+      }
+      dispatch(setActiveFlow(flow.id));
+      router.push("/");
+    } else {
+      showToast((result as any).message ?? "Failed to create demo flow. Please try again.", "error");
+    }
   }
 
   function handleCreateNew() {
@@ -159,14 +183,29 @@ export default function MyFlowsPage() {
               )}
             </p>
           </div>
-          <button
-            onClick={handleCreateNew}
-            title={!activeProjectId ? "Select or create a project first" : undefined}
-            className={`flex items-center gap-sm bg-primary text-on-primary-fixed font-bold px-lg py-3 rounded-lg transition-all ${activeProjectId ? "hover:opacity-90 active:scale-95" : "opacity-40 cursor-not-allowed"}`}
-          >
-            <span className="material-symbols-outlined">add_circle</span>
-            Create New Flow
-          </button>
+          {flows.length > 0 && (
+            <div className="flex items-center gap-sm">
+              <Button
+                variant="outlined"
+                icon="auto_awesome"
+                loading={isDemoLoading}
+                disabled={!activeProjectId}
+                title={!activeProjectId ? "Select or create a project first" : "Create a pre-built demo flow"}
+                onClick={handleCreateDemo}
+              >
+                {isDemoLoading ? "Creating..." : "Create Demo Flow"}
+              </Button>
+              <Button
+                variant="primary"
+                icon="add_circle"
+                disabled={!activeProjectId}
+                title={!activeProjectId ? "Select or create a project first" : undefined}
+                onClick={handleCreateNew}
+              >
+                Create New Flow
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* No-project callout */}
@@ -179,59 +218,121 @@ export default function MyFlowsPage() {
                 Use the <span className="text-primary font-bold">Project</span> selector in the top bar to choose an existing project or create a new one. Flows belong to a project. you need one before you can create flows.
               </p>
             </div>
-            <button
+            <Button
+              icon="folder_open"
               onClick={() => document.querySelector<HTMLButtonElement>('[data-project-trigger]')?.click()}
-              className="shrink-0 flex items-center gap-xs px-md py-sm rounded-lg bg-primary text-on-primary-fixed font-bold text-body-sm hover:opacity-90 active:scale-95 transition-all"
             >
-              <span className="material-symbols-outlined text-sm">folder_open</span>
               Select Project
-            </button>
+            </Button>
           </div>
         )}
 
-        {/* Search Bar */}
-        <div className="flex items-center mb-lg bg-surface-container-low p-sm rounded-xl border border-outline-variant">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">
-              search
-            </span>
-            <input
-              className="bg-surface-container border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-on-surface text-body-md focus:border-primary w-56 transition-all outline-none"
-              placeholder="Search flows..."
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Flow Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
-          {filtered.map((flow) => (
-            <FlowCard
-              key={flow.id}
-              flow={flow}
-              onOpen={() => handleOpenFlow(flow)}
-              onEdit={(e) => handleEditFlow(e, flow)}
-              onDelete={(e) => handleDeleteClick(e, flow.id)}
-            />
-          ))}
-          <div
-            onClick={handleCreateNew}
-            title={!activeProjectId ? "Select or create a project first" : undefined}
-            className={`border-2 border-dashed border-outline-variant rounded-xl p-md flex flex-col items-center justify-center text-center transition-all group ${activeProjectId ? "opacity-60 hover:opacity-100 hover:border-primary hover:bg-surface-container-low cursor-pointer" : "opacity-30 cursor-not-allowed"}`}
-          >
-            <div className="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center mb-md group-hover:bg-primary/20 transition-colors">
-              <span className="material-symbols-outlined text-2xl">add</span>
+        {flows.length === 0 ? (
+          /* Empty state hero */
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            {/* Glowing icon */}
+            <div className="relative mb-xl">
+              <div className="absolute inset-0 rounded-3xl bg-primary/20 blur-2xl scale-150" />
+              <div className="relative w-24 h-24 rounded-3xl bg-primary/10 border border-primary/30 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary" style={{ fontSize: "48px" }}>bolt</span>
+              </div>
             </div>
-            <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">
-              New Flow
+
+            <h3 className="font-headline-lg text-headline-lg text-on-surface mb-sm">
+              You have no flows yet
             </h3>
-            <p className="text-on-surface-variant text-body-sm px-lg">
-              Start building a new API flow from scratch.
+            <p className="text-on-surface-variant font-body-md w-max m-5 ">
+              Try the demo flow to see FlowZ in action.
             </p>
+
+            <div className="flex flex-col sm:flex-row items-center gap-md mb-2xl">
+              <Button
+                variant="primary"
+                icon="auto_awesome"
+                loading={isDemoLoading}
+                disabled={!activeProjectId}
+                title={!activeProjectId ? "Select or create a project first" : undefined}
+                onClick={handleCreateDemo}
+                className="px-xl py-4"
+              >
+                {isDemoLoading ? "Creating..." : "Try Demo Flow"}
+              </Button>
+              <Button
+                variant="ghost"
+                icon="add_circle"
+                disabled={!activeProjectId}
+                title={!activeProjectId ? "Select or create a project first" : undefined}
+                onClick={handleCreateNew}
+              >
+                Start from scratch
+              </Button>
+            </div>
+
+            {!activeProjectId && (
+              <p className="text-outline text-body-sm mt-5">
+                Select a project above to get started.
+              </p>
+            )}
+
+            {/* Feature highlights */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-md max-w-2xl w-full mt-5">
+              {[
+                { icon: "link", label: "Chain API calls", desc: "Execute requests in sequence with shared variables" },
+                { icon: "rule", label: "Assert responses", desc: "Validate status codes, headers, and body fields" },
+                { icon: "settings_backup_restore", label: "Fallback steps", desc: "Define recovery paths when a step fails" },
+              ].map(({ icon, label, desc }) => (
+                <div key={label} className="bg-surface-container-low border border-outline-variant rounded-xl p-md text-left">
+                  <span className="material-symbols-outlined text-primary mb-sm block">{icon}</span>
+                  <p className="font-bold text-on-surface text-sm mb-xs">{label}</p>
+                  <p className="text-on-surface-variant text-[11px] font-body-md leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Flow grid */
+          <>
+            <div className="flex items-center mb-lg bg-surface-container-low p-sm rounded-xl border border-outline-variant">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">
+                  search
+                </span>
+                <input
+                  className="bg-surface-container border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-on-surface text-body-md focus:border-primary w-56 transition-all outline-none"
+                  placeholder="Search flows..."
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
+              {filtered.map((flow) => (
+                <FlowCard
+                  key={flow.id}
+                  flow={flow}
+                  onOpen={() => handleOpenFlow(flow)}
+                  onEdit={(e) => handleEditFlow(e, flow)}
+                  onDelete={(e) => handleDeleteClick(e, flow.id)}
+                />
+              ))}
+              <div
+                onClick={handleCreateNew}
+                title={!activeProjectId ? "Select or create a project first" : undefined}
+                className={`border-2 border-dashed border-outline-variant rounded-xl p-md flex flex-col items-center justify-center text-center transition-all group ${activeProjectId ? "opacity-60 hover:opacity-100 hover:border-primary hover:bg-surface-container-low cursor-pointer" : "opacity-30 cursor-not-allowed"}`}
+              >
+                <div className="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center mb-md group-hover:bg-primary/20 transition-colors">
+                  <span className="material-symbols-outlined text-2xl">add</span>
+                </div>
+                <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">New Flow</h3>
+                <p className="text-on-surface-variant text-body-sm px-lg">
+                  Start building a new API flow from scratch.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Footer */}
@@ -263,19 +364,12 @@ export default function MyFlowsPage() {
               This will permanently remove the flow and all its steps. This action cannot be undone.
             </p>
             <div className="flex justify-end gap-sm">
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="px-lg py-sm rounded-lg border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-all font-body-md"
-              >
+              <Button variant="ghost" onClick={() => setDeleteConfirmId(null)}>
                 Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="px-lg py-sm rounded-lg bg-error text-on-error font-bold hover:opacity-90 transition-all active:scale-95 flex items-center gap-xs font-body-md"
-              >
-                <span className="material-symbols-outlined text-sm">delete</span>
+              </Button>
+              <Button variant="danger" icon="delete" onClick={confirmDelete}>
                 Delete
-              </button>
+              </Button>
             </div>
           </div>
         </div>

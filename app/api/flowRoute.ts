@@ -185,6 +185,19 @@ export const deleteFallbackStep = async (flowId: string, fallbackId: string): Pr
     }
 }
 
+export const createMockupFlow = async (projectId: string): Promise<APIResponse | APIErrorResponse> => {
+    try {
+        const apiResponse = await api.post(`${API_ROUTE}/mockup/${projectId}`);
+        return {
+            success: true,
+            data: apiResponse.data,
+            msg: 'Demo flow created successfully'
+        };
+    } catch (error: any) {
+        return toAPIError(error);
+    }
+}
+
 export const syncSteps = async (
     flowId: string,
     stepData: StepFormData | null,
